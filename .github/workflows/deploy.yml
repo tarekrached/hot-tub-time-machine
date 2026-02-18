@@ -22,7 +22,7 @@ jobs:
           VAL_TOWN_API_KEY: ${{ secrets.VAL_TOWN_API_KEY }}
         run: |
           # Clone the existing val to get the .vt metadata
-          vt clone ${{ vars.VT_PROJECT }} vt-project
+          vt clone ${{ vars.VT_PROJECT }} vt-project --no-editor-files
 
           # Copy source files over the cloned val
           cp -r backend frontend shared index.ts vt-project/

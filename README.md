@@ -40,13 +40,15 @@ frontend/
 shared/
   types.ts                # TypeScript interfaces and constants
   chemistry.ts            # Chemistry calculations and dosing logic
+docs/
+  bromine-3-step-method.md  # Reference: bromine maintenance method
 .github/workflows/
   deploy.yml              # CI/CD: deploy to Val Town on push to main
 ```
 
 ## Chemistry
 
-Configured for a **330-gallon** hot tub using the **bleach/bromine** sanitization method:
+Configured for a **330-gallon** hot tub using the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/) with **7.5% disinfecting bleach** and a **Taylor K-2106** drop-based test kit. See [`docs/bromine-3-step-method.md`](docs/bromine-3-step-method.md) for the full reference.
 
 | Test | Ideal Range | Cadence |
 |------|-------------|---------|

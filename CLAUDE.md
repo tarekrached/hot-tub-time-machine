@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Hot Tub Time Machine is a hot tub chemical tracker deployed on Val Town. It uses a Hono backend with Val Town's built-in SQLite, a React frontend served as static files, and a GitHub Actions workflow to deploy via the `vt` CLI.
+Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed as a private/unlisted val on Val Town. It replaces a printed cheat sheet used to record chemical levels before and after balancing. It uses a Hono backend (based on the reactHonoStarter template) with Val Town's built-in SQLite, a React frontend served as static files, and a GitHub Actions workflow to deploy via the `vt` CLI.
 
 ## Architecture
 
@@ -16,8 +16,19 @@ Hot Tub Time Machine is a hot tub chemical tracker deployed on Val Town. It uses
 
 - Entry point is `index.ts` which re-exports `backend/index.ts`.
 - No build step — TypeScript files are served and executed directly by Val Town/Deno.
-- Chemistry constants are calibrated for a 330-gallon tub using Taylor K-2106 test kit and 7.5% bleach.
+- Chemistry constants are calibrated for a 330-gallon tub using Taylor K-2106 test kit and 7.5% disinfecting bleach (higher concentration than regular bleach).
 - All dosing functions live in `shared/chemistry.ts` and are shared between frontend and backend.
+- The app is designed to be used on a phone while standing at the hot tub.
+
+## Chemistry Reference
+
+The chemistry and maintenance schedule is based on the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/). A full copy of the source material is saved in `docs/bromine-3-step-method.md`.
+
+Key design decisions from the source:
+- **Titrating tests**: The app supports entering raw drop counts instead of PPM values. The bromine test has two sample size options (10ml vs 25ml) with different PPM-per-drop ratios.
+- **Test order matters**: TA should be adjusted before pH. pH cannot be accurately tested when sanitizer is above 10 ppm (Taylor kit limit).
+- **Shock dosing**: Uses bleach to oxidize the bromide bank. No additional sodium bromide is needed for weekly shock — only on drain/refill.
+- **Maintenance cadence**: The app tracks time since last test and proposes appropriate tests on open. Weekly: pH & bromine. Every 2–4 weeks: TA & calcium. Every 3–4 months: drain, refill, rebalance, re-add sodium bromide.
 
 ## Deployment
 

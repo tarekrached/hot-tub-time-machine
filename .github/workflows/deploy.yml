@@ -15,7 +15,7 @@ jobs:
           deno-version: v2.x
 
       - name: Install vt CLI
-        run: deno install --global --force --allow-read --allow-write --allow-env --allow-net jsr:@valtown/vt
+        run: deno install -grAf jsr:@valtown/vt
 
       - name: Clone val and push changes
         env:

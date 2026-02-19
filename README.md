@@ -1,49 +1,32 @@
 # Hot Tub Time Machine
 
-A hot tub chemical tracker and maintenance app built on [Val Town](https://val.town). Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from a simple web UI.
+A mobile-friendly hot tub chemical tracker deployed on Cloudflare Pages with D1 database. Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from your phone while standing at the hot tub.
 
 ## Features
 
-- **Test Sessions** — Record before/after readings for pH, bromine, total alkalinity, and calcium hardness
-- **Drop-to-PPM Conversion** — Automatic conversion for Taylor K-2106 titration tests
+- **Test Wizard** — Per-test sequential flow (TA → Bromine → pH → Calcium) with session recovery, 15-minute retest timers, and dosing recommendations
+- **Drop-to-PPM Conversion** — Automatic conversion for Taylor K-2106 titration tests (supports 10ml and 25ml sample sizes)
 - **Dosing Recommendations** — Calculates chemical amounts based on current readings for a 330-gallon tub
-- **Maintenance Log** — Track filter changes, water changes, and drain/refill events
-- **Dashboard** — See last test dates, suggested tests based on cadence, and recent session history
+- **Dashboard** — Status cards with urgency coloring (green/yellow/red), sparkline trends, and overdue test badges
+- **Maintenance Log** — Track filter changes, water changes, and drain/refill events with sodium bromide reminders
+- **pH Enforcement** — Soft auto-skip when bromine > 10 ppm (Taylor kit limit) with manual override
 
 ## Tech Stack
 
-- **Backend**: [Hono](https://hono.dev/) web framework on Val Town
-- **Frontend**: React (TSX) served as static files
-- **Database**: Val Town SQLite (`@std/sqlite`)
-- **Deployment**: GitHub Actions → Val Town via the `vt` CLI
+- **Runtime**: Cloudflare Pages (Workers runtime)
+- **Framework**: [React Router v7](https://reactrouter.com/) (framework mode) with SSR
+- **Database**: Cloudflare D1 (SQLite)
+- **Styling**: CSS Modules, light theme optimized for outdoor readability
+- **Testing**: Vitest for chemistry unit tests
+- **Deployment**: GitHub Actions → Cloudflare Pages via Wrangler
 
-## Project Structure
+## Development
 
-```
-index.ts                  # Entry point (re-exports backend)
-backend/
-  index.ts                # Hono API routes
-  database/
-    migrations.ts         # SQLite table creation
-    queries.ts            # Database query functions
-frontend/
-  index.html              # Main HTML shell
-  index.tsx               # React entry point
-  style.css               # Styles
-  components/
-    App.tsx               # Root component with routing
-    Dashboard.tsx         # Home dashboard
-    TestSession.tsx       # Test session workflow
-    TestHistory.tsx       # Past session browser
-    MaintenanceLog.tsx    # Maintenance event tracker
-    DosingCalculator.tsx  # Chemical dosing calculator
-shared/
-  types.ts                # TypeScript interfaces and constants
-  chemistry.ts            # Chemistry calculations and dosing logic
-docs/
-  bromine-3-step-method.md  # Reference: bromine maintenance method
-.github/workflows/
-  deploy.yml              # CI/CD: deploy to Val Town on push to main
+```bash
+npm install
+npm run dev       # Local dev server with HMR
+npm test          # Run chemistry unit tests
+npm run build     # Production build
 ```
 
 ## Chemistry
@@ -59,21 +42,27 @@ Configured for a **330-gallon** hot tub using the [bromine 3-step method](https:
 
 ## Deployment
 
-The app deploys to Val Town automatically when you push to `main` via GitHub Actions.
+The app deploys to Cloudflare Pages automatically on push to `main` via GitHub Actions.
 
-### Required GitHub repo settings
+### Required GitHub repo secrets
 
-- **Secret** `VAL_TOWN_API_KEY` — Val Town API token with **user:read**, **val:read+write**, and **telemetry:read** scopes. Generate at [val.town/settings/api](https://www.val.town/settings/api).
-- **Variable** `VT_PROJECT` — The name of your Val Town project (e.g. `username/hot-tub-time-machine`).
+- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers/Pages/D1 permissions
+- **`CLOUDFLARE_ACCOUNT_ID`** — Cloudflare account ID
 
 ### Manual deploy
 
 ```bash
-# Install the vt CLI
-deno install --global --force --allow-read --allow-write --allow-env --allow-net jsr:@valtown/vt
-
-# Clone, copy files, and push
-vt clone <your-vt-project> vt-project
-cp -r backend frontend shared index.ts vt-project/
-cd vt-project && vt push
+npm run build
+npx wrangler d1 migrations apply hot-tub-time-machine --remote
+npx wrangler pages deploy ./build/client --project-name=hot-tub-time-machine
 ```
+
+## Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Dashboard — status cards with urgency coloring, sparkline trends |
+| `/test` | Test wizard — per-test sequential flow with session recovery |
+| `/settings/log` | Combined timeline of test sessions and maintenance events |
+| `/settings/maintenance` | Action buttons to log maintenance + drain/refill bromide reminder |
+| `/settings/reference` | Static dosing tables, drop-to-PPM reference, test schedule |

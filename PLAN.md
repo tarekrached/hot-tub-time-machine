@@ -1,89 +1,143 @@
-# Migration Plan: React Router v7 + Cloudflare Workers + D1
+# Hot Tub Time Machine — Cloudflare Build Plan
 
 ## Overview
 
-Migrate from Val Town + Hono + Val Town SQLite → React Router v7 (Remix) + Cloudflare Workers + D1 + Cloudflare Access.
-
-**Why this stack:**
-- React Router v7 = Remix renamed. Full-stack React with loaders/actions, great forms, no separate API layer needed
-- Cloudflare D1 = SQLite at the edge. Your existing SQL queries work with minimal changes
-- Cloudflare Workers = fast, no cold starts, generous free tier (100k req/day)
-- Cloudflare Access = zero-code auth in front of the app (free for up to 50 users)
-
-**What stays the same:**
-- React components (with minor adaptation)
-- All chemistry logic (`shared/chemistry.ts`) — copy as-is
-- All TypeScript types (`shared/types.ts`) — copy as-is
-- Database schema — D1 is SQLite, so same SQL
-- Mobile-first CSS — copy as-is
+Build a fresh hot tub chemical tracker on Cloudflare infrastructure, using the existing codebase as a specification for chemistry logic and UX requirements. This is **not** a migration of a working app — the existing Val Town app was never successfully deployed. The new app is built from scratch on modern infrastructure with several UX improvements.
 
 ---
 
-## Step 1: Scaffold React Router v7 + Cloudflare Project
+## Architecture Decisions
 
-Create a new React Router v7 project using the Cloudflare template:
-
-```bash
-npx create-react-router@latest hot-tub-v2 --template cloudflare
-```
-
-This gives us:
-- `app/` directory with routes, components, root layout
-- `wrangler.toml` for Cloudflare config
-- `vite.config.ts` with React Router + Cloudflare plugin
-- `package.json` with all dependencies
-- Dev server with HMR
-
-**New project structure:**
-```
-hot-tub-v2/
-├── app/
-│   ├── routes/              # File-based routing
-│   │   ├── home.tsx         # Dashboard (GET /)
-│   │   ├── api.sessions.ts  # REST endpoints (if needed)
-│   │   └── ...
-│   ├── components/          # React components (migrated)
-│   │   ├── Dashboard.tsx
-│   │   ├── TestSession.tsx
-│   │   ├── TestHistory.tsx
-│   │   ├── MaintenanceLog.tsx
-│   │   └── DosingCalculator.tsx
-│   ├── lib/
-│   │   ├── chemistry.ts     # Shared chemistry (copied)
-│   │   ├── types.ts         # Shared types (copied)
-│   │   └── db.server.ts     # D1 database queries
-│   ├── root.tsx             # App shell, layout, CSS
-│   └── app.css              # Styles (migrated)
-├── migrations/              # D1 SQL migrations
-│   └── 0001_initial.sql
-├── wrangler.toml            # Cloudflare config
-├── vite.config.ts
-└── package.json
-```
+| Decision | Choice | Rationale |
+|---|---|---|
+| **Runtime** | Cloudflare Pages | Free PR preview deployments, git-triggered deploys, same Workers runtime under the hood |
+| **Framework** | React Router v7 (framework mode) | Server loaders/actions, SSR, eliminates `window.__INITIAL_DATA__` hack |
+| **Database** | Cloudflare D1 (US West) | Single-user app, primary region close to user |
+| **Auth** | Cloudflare Access on entire domain | Zero-code auth, configured in CF dashboard |
+| **Styling** | CSS Modules (from scratch) | Per-component scoped styles, fresh light theme |
+| **Bundling** | Vite defaults | App is small enough; let Vite's heuristics handle splitting |
+| **Testing** | Vitest | Chemistry unit tests only; integrates naturally with Vite |
+| **Data pattern** | Loaders for reads, actions for mutations | Fully idiomatic RR v7. No `/api/*` routes. |
+| **Shared code** | `/shared` directory with tsconfig paths | Both Vite and Wrangler resolve the same TypeScript source files |
+| **Migrations** | Wrangler D1 migrations | Numbered SQL files, applied via `wrangler d1 migrations apply` during deploy |
+| **Existing data** | Fresh start | No data migration from Val Town |
+| **Chemistry constants** | Hardcoded | 330-gallon tub, 7.5% bleach, Taylor K-2106 kit. YAGNI. |
 
 ---
 
-## Step 2: Set Up D1 Database
+## UI/UX Design
 
-### 2a. Create D1 database
+### Navigation: 3-Tab Layout
 
-```bash
-npx wrangler d1 create hot-tub-db
+No app header bar — maximize screen real estate. Fixed bottom tab bar:
+
+| Tab | Route | Content |
+|---|---|---|
+| **Dashboard** | `/` | Status/urgency cards + SVG sparkline mini-trends |
+| **Test** | `/test` | Per-test sequential wizard (direct entry point, no dashboard button) |
+| **Settings** | `/settings` | Sub-navigation: Log \| Maintenance \| Reference |
+
+### Theme: Light
+
+Designed for outdoor readability (bright sunlight, wet/foggy screen). High contrast, generous spacing, large touch targets for wet fingers. Optimize for maximum outdoor readability.
+
+### Settings Sub-Tabs
+
+| Sub-tab | Content |
+|---|---|
+| **Log** | Combined timeline of test sessions AND maintenance events in chronological order |
+| **Maintenance** | Action buttons to log filter change / water change / drain & refill (with sodium bromide reminder flow) |
+| **Reference** | Dosing amounts, drop-to-PPM conversions, test schedule, adjustment order |
+
+### Dashboard
+
+- **Status cards** (2-column grid): One card per test type (pH, Bromine, TA, Calcium) + maintenance types (Filter, Water Change, Drain/Refill)
+  - Color coding: green (OK), yellow (warning at 75% of cadence), red (urgent at 100%+)
+  - "Due" badge when test/maintenance is overdue
+  - Time since last test/event (relative: "Today", "3 days ago", etc.)
+- **SVG sparkline mini-trends**: Last few sessions showing both before AND after readings as dual lines/dots per test type
+- No "Start Test Session" button — the Test tab is the entry point
+
+---
+
+## Test Session Wizard — Per-Test Sequential Flow
+
+### Test Order (reordered for pH enforcement)
+
+**TA → Bromine → pH → Calcium**
+
+Bromine is tested before pH so the app can enforce the soft pH skip when bromine > 10 ppm.
+
+### Flow
+
+```
+1. SELECT TESTS
+   - Checkboxes for each test type
+   - Pre-checked with suggested (overdue) tests
+   - "Start" button creates session via action
+   - Step dots: ● ○ ○ ○ ... (one dot per selected test + summary)
+
+2. PER-TEST LOOP (repeats for each selected test):
+
+   a. INPUT READING
+      - Test name + input field
+      - Mode toggle: drops / ppm (for bromine, TA, calcium)
+      - Bromine sample size toggle: 25ml / 10ml (in drops mode)
+      - Real-time drop ↔ PPM conversion display
+      - "Skip" button to skip this test entirely
+      - Submit saves reading via RR action
+
+   b. RECOMMENDATION (or "In Range!")
+      - If IN RANGE: Show "✅ In range!" with "Next Test" button (manual advance)
+      - If OUT OF RANGE: Show chemical, amount (oz + tbsp/tsp), reason
+      - "Applied — Start Timer" or "Skip Re-test" buttons
+
+   c. 15-MINUTE TIMER (only if chemicals were applied)
+      - Countdown timer (15:00 → 0:00), dismissable via "Continue Early" button
+      - Reminder text: "Run jets to mix chemicals"
+
+   d. RE-TEST (optional, only if chemicals were applied)
+      - Same input UI as step (a)
+      - Saves as phase="after" reading via action
+
+   → Advance to next test
+
+3. PH ENFORCEMENT (soft)
+   - When pH comes up in the loop and bromine was > 10 ppm:
+     Auto-skip with explanation: "pH skipped: bromine is above 10 ppm
+     (Taylor kit limit). Re-test pH when bromine drops below 10."
+   - User can override: "Test pH anyway" button
+
+4. SUMMARY
+   - All tests with before/after values
+   - Color-coded: green if in ideal range, red if out
+   - Raw drop counts shown if entered
+   - "Done" completes the session via action
 ```
 
-Add binding to `wrangler.toml`:
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "hot-tub-db"
-database_id = "<from-creation-output>"
-```
+### Session Recovery (sessionStorage)
 
-### 2b. Create migration file
+- **Persist**: Save wizard state to sessionStorage on every input change
+- **Resume**: When navigating to Test tab with saved state, show "Resume session?" prompt with summary of saved progress
+- **Clear**: Clear sessionStorage when session completes or user chooses "Start Fresh"
 
-File: `migrations/0001_initial.sql`
+---
 
-Same schema as current, with one small change — D1 uses standard SQLite syntax:
+## Error Handling
+
+| Error Type | Pattern | Behavior |
+|---|---|---|
+| **Network errors** (fetch failures) | Toast notification | Auto-dismiss after 5 seconds. One auto-retry silently, then show toast with "Retry" button. |
+| **Validation errors** (invalid input) | Inline error | Red text near the failed field. No retry needed — user corrects input. |
+| **Action failures** (server errors) | Toast + block progression | Do not advance wizard step. Show error toast. One auto-retry, then manual retry via form resubmission. |
+
+---
+
+## Database Schema
+
+Implemented as Wrangler D1 migration.
+
+### Migration 0001: Initial Schema
 
 ```sql
 CREATE TABLE test_sessions (
@@ -97,8 +151,8 @@ CREATE TABLE test_readings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES test_sessions(id),
   test_type TEXT NOT NULL,
-  phase TEXT NOT NULL,
-  value_ppm REAL,
+  phase TEXT NOT NULL CHECK (phase IN ('before', 'after')),
+  value_ppm REAL NOT NULL,
   raw_drops INTEGER,
   sample_size_ml INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -108,7 +162,7 @@ CREATE TABLE chemical_additions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER REFERENCES test_sessions(id),
   chemical TEXT NOT NULL,
-  amount_oz REAL,
+  amount_oz REAL NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -120,230 +174,302 @@ CREATE TABLE maintenance_events (
 );
 ```
 
-Run migration:
-```bash
-npx wrangler d1 migrations apply hot-tub-db
+---
+
+## Route Structure (React Router v7)
+
+```
+app/routes/
+├── _layout.tsx                      # Root layout: tab bar, error boundary, toast provider
+├── _layout._index.tsx               # Dashboard (/)
+├── _layout.test.tsx                 # Test wizard (/test)
+├── _layout.settings.tsx             # Settings layout with sub-tabs (/settings)
+│   ├── _layout.settings._index.tsx  # Redirect to /settings/log
+│   ├── _layout.settings.log.tsx     # Combined timeline (/settings/log)
+│   ├── _layout.settings.maintenance.tsx  # Maintenance actions (/settings/maintenance)
+│   └── _layout.settings.reference.tsx    # Dosing reference (/settings/reference)
 ```
 
-### 2c. Create database query module
+### Loader/Action Map
 
-File: `app/lib/db.server.ts`
-
-Rewrite `backend/database/queries.ts` to use D1's API instead of Val Town SQLite. Key difference: D1 uses `db.prepare(sql).bind(...args).all()` instead of Val Town's batch execute. The queries themselves stay the same — it's the same SQLite dialect.
-
----
-
-## Step 3: Migrate Shared Code
-
-### 3a. Types (`app/lib/types.ts`)
-
-Direct copy of `shared/types.ts`. Only change: remove URL import syntax, use normal TypeScript exports. No logic changes needed.
-
-### 3b. Chemistry (`app/lib/chemistry.ts`)
-
-Direct copy of `shared/chemistry.ts`. Same change: normal imports instead of URL imports. All calculation logic stays identical.
+| Route | Loader | Action |
+|---|---|---|
+| `/` (Dashboard) | Fetch last tests, last maintenance, suggested tests, sparkline data from D1 | — |
+| `/test` | Check for active session (for resume prompt) | Create session, save reading, complete session |
+| `/settings/log` | Fetch combined timeline (test sessions + maintenance events, ordered by date) | — |
+| `/settings/maintenance` | Fetch maintenance events | Log maintenance event |
+| `/settings/reference` | — (static content, uses shared chemistry constants) | — |
 
 ---
 
-## Step 4: Set Up Routes & Data Loading
+## Project Structure
 
-React Router v7 replaces the separate Hono API + React SPA with unified route modules that handle both data loading (server) and rendering (client).
-
-### 4a. Dashboard route (`app/routes/home.tsx`)
-
-```typescript
-// loader runs on server — replaces GET /api/dashboard
-export async function loader({ context }: Route.LoaderArgs) {
-  const db = context.cloudflare.env.DB;
-  return getDashboardData(db);
-}
-
-// Component renders on client — replaces Dashboard.tsx
-export default function Home({ loaderData }: Route.ComponentProps) {
-  return <Dashboard data={loaderData} />;
-}
+```
+hot-tub-time-machine/
+├── app/
+│   ├── routes/               # React Router v7 route modules
+│   ├── components/           # Shared UI components (Toast, StepDots, Timer, etc.)
+│   ├── styles/               # CSS Modules (*.module.css)
+│   ├── lib/
+│   │   └── errors.ts         # Error handling utilities (auto-retry, toast logic)
+│   ├── root.tsx              # Root document (html, head, body, Scripts, etc.)
+│   └── entry.server.tsx      # Server entry (Cloudflare Pages adapter)
+├── shared/
+│   ├── chemistry.ts          # Dosing calculations, drop-to-PPM, test cadence
+│   └── types.ts              # TypeScript interfaces, constants, ranges
+├── server/
+│   └── db.ts                 # D1 query functions (adapted from current queries.ts)
+├── migrations/
+│   └── 0001_initial.sql      # D1 migration
+├── tests/
+│   └── chemistry.test.ts     # Vitest unit tests for chemistry module
+├── public/                   # Static assets (favicon, etc.)
+├── wrangler.toml             # Cloudflare config (D1 binding, Pages config)
+├── vite.config.ts            # Vite config with React Router v7 plugin
+├── tsconfig.json             # TypeScript config with shared/ path alias
+├── package.json
+├── CLAUDE.md
+└── PLAN.md
 ```
 
-This replaces:
-- The `GET /` route that bootstraps `window.__INITIAL_DATA__`
-- The `GET /api/dashboard` endpoint
-- The SSR data injection hack
+---
 
-### 4b. API routes for mutations
+## Shared Code (`/shared`)
 
-For the SPA-style interactions (test session flow with multiple sequential API calls), keep lightweight API routes:
+### chemistry.ts — Preserved Logic
 
-- `app/routes/api.sessions.ts` — POST (create), GET (list)
-- `app/routes/api.sessions.$id.ts` — GET (detail), PUT (complete)
-- `app/routes/api.readings.ts` — POST (add reading)
-- `app/routes/api.additions.ts` — POST (add addition)
-- `app/routes/api.maintenance.ts` — POST (add), GET (list)
+All existing chemistry logic carries forward unchanged:
 
-These are thin wrappers around the db.server.ts functions. The TestSession component's multi-step flow works best with direct fetch calls rather than form actions, so keeping REST endpoints is the pragmatic choice.
+- **Constants**: `TUB_GALLONS = 330`, `BLEACH_CONCENTRATION = 7.5`, all dosing constants
+- **Functions**: `dropsToPpm()`, `ppmToDrops()`, `ozToTablespoons()`, `ozToTeaspoons()`, `getRecommendations()`, `timeSinceLabel()`, `daysSince()`
+- **Cadence**: `TEST_CADENCE_DAYS` and `MAINTENANCE_CADENCE_DAYS`
+- **New**: Test order constant `TEST_ORDER = ['ta', 'bromine', 'ph', 'calcium']` (updated from original TA → pH → Bromine → Calcium)
+
+### types.ts — Preserved Types
+
+All existing types carry forward unchanged:
+
+- `TestSession`, `TestReading`, `ChemicalAddition`, `MaintenanceEvent`
+- `TestType`, `MaintenanceType`, `ChemicalType`
+- `TEST_RANGES`, `TEST_LABELS`, `MAINTENANCE_LABELS`
+- `DashboardData`, `SessionDetail`
 
 ---
 
-## Step 5: Migrate React Components
+## Implementation Steps
 
-### 5a. App shell → `app/root.tsx`
+### Phase 1: Project Scaffolding
 
-The current `App.tsx` manages tab state and renders components. In React Router v7, `root.tsx` provides the shell (HTML head, CSS, scripts) and the tab navigation. The tab routing can either:
+1. **Initialize React Router v7 + Cloudflare Pages project**
+   - Use the official `create-react-router` template for Cloudflare
+   - Configure `wrangler.toml` with D1 binding (US West)
+   - Set up `tsconfig.json` with `shared/` path alias
+   - Configure Vitest in `vite.config.ts`
 
-- **Option A**: Keep client-side tab state (simpler migration, single route)
-- **Option B**: Use React Router nested routes (each tab = a route, enables URL-based navigation)
+2. **Create D1 database and migration**
+   - `wrangler d1 create hot-tub-time-machine`
+   - Write `migrations/0001_initial.sql` with full schema
+   - Apply migration locally: `wrangler d1 migrations apply --local`
 
-**Recommendation: Option A** for initial migration (less risk), convert to Option B later if desired.
+3. **Port shared code**
+   - Copy `shared/chemistry.ts` — update imports from URL imports to standard imports
+   - Copy `shared/types.ts` — remove URL import dependencies
+   - Add `TEST_ORDER` constant: `['ta', 'bromine', 'ph', 'calcium']`
 
-### 5b. Component migration (minimal changes)
+4. **Write chemistry unit tests**
+   - Test `dropsToPpm()` with all test types and sample sizes
+   - Test `ppmToDrops()` inverse conversions
+   - Test `getRecommendations()` for all test types at various values (in-range, below, above)
+   - Test `ozToTablespoons()` and `ozToTeaspoons()` conversions
+   - Test edge cases: zero drops, null sample size, boundary values
 
-Each component needs these changes:
-1. Replace URL imports (`https://esm.sh/react`) with normal imports (`import React from "react"`)
-2. Replace `fetch("/api/...")` URLs — these stay the same since we're keeping API routes
-3. Remove `window.__INITIAL_DATA__` usage — replaced by loader data passed as props
+### Phase 2: Server Layer
 
-**Component-specific notes:**
+5. **Implement D1 query functions** (`server/db.ts`)
+   - Adapt `backend/database/queries.ts` from Val Town SQLite to D1 binding
+   - D1 uses `env.DB.prepare().bind().all()` instead of `sqlite.execute()`
+   - Add sparkline data query: last N before+after readings per test type
+   - Add combined timeline query: UNION of test sessions and maintenance events, ordered by date
 
-- **Dashboard.tsx**: Remove SSR bootstrap logic. Data comes from loader via props. Otherwise unchanged.
-- **TestSession.tsx**: No changes needed beyond imports. Multi-step flow with fetch calls works as-is.
-- **TestHistory.tsx**: No changes beyond imports. Fetches session list on mount.
-- **MaintenanceLog.tsx**: No changes beyond imports. Fetches/posts maintenance events.
-- **DosingCalculator.tsx**: Pure static component. Only import changes.
+6. **Implement route loaders and actions**
+   - Dashboard loader: suggested tests, urgency data, sparkline readings
+   - Test route: action for create session, save reading, complete session (discriminated by intent field)
+   - Settings/log loader: combined timeline query
+   - Settings/maintenance: loader for events, action for logging
+   - All loaders/actions receive D1 binding from Cloudflare context
 
-### 5c. CSS (`app/app.css`)
+### Phase 3: UI Components
 
-Direct copy of `frontend/style.css`. No changes needed — it's standard CSS.
+7. **Root layout and navigation**
+   - `root.tsx`: HTML document with light theme CSS variables, meta tags
+   - `_layout.tsx`: Bottom tab bar (3 tabs: Dashboard, Test, Settings), error boundary, toast provider
+   - No app header — tabs provide context
+   - CSS Module for layout: `layout.module.css`
 
----
+8. **Dashboard page** (`/`)
+   - Status card grid (2-column) with urgency coloring (green/yellow/red)
+   - SVG sparkline component: dual before/after lines per test type
+   - `timeSinceLabel()` for relative dates
+   - "Due" badge on overdue tests
+   - CSS Module: `dashboard.module.css`
 
-## Step 6: Update Build & Dev Setup
+9. **Test wizard** (`/test`)
+   - Step management: React state + sessionStorage (persist on every input change)
+   - Resume prompt: check sessionStorage on mount, show modal if saved state exists
+   - Test selection step with pre-checked suggestions from dashboard loader
+   - Per-test loop component:
+     - Input with drops/ppm toggle, sample size selector, real-time conversion
+     - Recommendation display or "In Range!" confirmation (manual advance)
+     - 15-minute dismissable countdown timer component
+     - Optional re-test input
+   - Soft pH enforcement: auto-skip with explanation + "Test pH anyway" override
+   - Step dots progress indicator
+   - Skip button per test
+   - Summary step with color-coded before/after values
+   - CSS Module: `test-wizard.module.css`
 
-### 6a. `vite.config.ts`
+10. **Settings pages**
+    - Sub-tab navigation (segmented control): Log | Maintenance | Reference
+    - **Log**: Combined timeline of sessions + maintenance events, expandable session details with before/after readings
+    - **Maintenance**: Three action buttons + drain/refill reminder flow (3-step sodium bromide instructions shown only during drain/refill logging)
+    - **Reference**: Static dosing tables, drop-to-PPM reference, test schedule, adjustment order
+    - CSS Modules: `settings.module.css`, `timeline.module.css`, `reference.module.css`
 
-Already configured by the Cloudflare template. Handles:
-- React Router plugin (file-based routing, SSR)
-- Cloudflare adapter (Workers runtime)
-- HMR for development
+11. **Shared UI components**
+    - `Toast.tsx` + `ToastProvider.tsx`: auto-dismiss network error toasts (5 seconds)
+    - `StepDots.tsx`: progress indicator for wizard (● ○ ○ ○)
+    - `Timer.tsx`: 15-minute countdown with dismiss button
+    - `SparklineChart.tsx`: SVG sparkline for dashboard cards (dual before/after lines)
+    - Error retry utility: one auto-retry silently, then surface manual retry button
 
-### 6b. `wrangler.toml`
+### Phase 4: Error Handling
 
-```toml
-name = "hot-tub-time-machine"
-compatibility_date = "2024-11-18"
-main = "build/server/index.js"
-assets = { directory = "build/client" }
+12. **Implement error handling system**
+    - Toast context provider in root layout
+    - Auto-retry wrapper for actions (retry once silently, then show toast with retry button)
+    - Inline validation errors for test input fields (red text near field)
+    - Block wizard progression on failed saves
+    - Graceful loader error boundaries per route
 
-[[d1_databases]]
-binding = "DB"
-database_name = "hot-tub-db"
-database_id = "<id>"
-```
+### Phase 5: Deployment
 
-### 6c. Local development
+13. **GitHub Actions workflow**
+    - Trigger on push to `main` → deploy to production via Cloudflare Pages
+    - Automatic PR preview deployments (Cloudflare Pages built-in via GitHub integration)
+    - Apply D1 migrations as part of deploy: `wrangler d1 migrations apply --remote`
+    - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
-```bash
-npm run dev        # Vite dev server with D1 local emulation
-```
+14. **Cloudflare Access setup** (manual, one-time)
+    - In Cloudflare dashboard → Zero Trust → Access → Applications
+    - Create a self-hosted application for the Pages subdomain (`*.pages.dev`)
+    - Configure identity provider: email OTP (simplest for single user)
+    - Set policy: allow specific email address
+    - Test: verify unauthenticated requests are redirected to login
 
-D1 is automatically emulated locally by wrangler — no cloud DB needed for dev.
+### Phase 6: Polish & Testing
 
----
+15. **Mobile optimizations**
+    - Viewport meta: `user-scalable=no`, `apple-mobile-web-app-capable`
+    - `env(safe-area-inset-bottom)` for iOS home bar
+    - `-webkit-tap-highlight-color: transparent`
+    - Large touch targets (minimum 44px) for wet-finger use
+    - `inputMode="numeric"` / `inputMode="decimal"` for mobile keyboards
+    - Remove number input spinners via CSS
 
-## Step 7: Set Up Cloudflare Access (Auth)
-
-### 7a. Prerequisites
-- Domain or Cloudflare Workers subdomain (e.g., `hot-tub.yourdomain.com`)
-- Cloudflare Zero Trust dashboard access (free)
-
-### 7b. Configuration (via Cloudflare dashboard)
-1. Go to Cloudflare Zero Trust → Access → Applications
-2. Create application: "Hot Tub Time Machine"
-3. Set application domain to your Workers URL
-4. Create access policy:
-   - **Allow**: Emails matching your email address
-   - **Authentication**: Email OTP, Google, or GitHub (pick one or more)
-5. Save
-
-### 7c. Result
-- All requests to your app go through Cloudflare Access first
-- Unauthenticated users see a login page (hosted by Cloudflare)
-- Authenticated users get a JWT cookie and pass through to your app
-- **Zero code changes in your app** — auth is handled at the network layer
-
----
-
-## Step 8: Deployment
-
-### 8a. Manual deploy
-
-```bash
-npm run build
-npx wrangler deploy
-```
-
-### 8b. GitHub Actions (`.github/workflows/deploy.yml`)
-
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm ci
-      - run: npm run build
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-```
-
-**Required secrets:**
-- `CLOUDFLARE_API_TOKEN`: Cloudflare API token with Workers + D1 permissions
-
----
-
-## Migration Order (recommended)
-
-1. **Scaffold project** — get React Router + Cloudflare template running locally
-2. **Copy shared code** — types.ts, chemistry.ts (zero-risk, no logic changes)
-3. **Set up D1** — create database, run migration, write db.server.ts
-4. **Migrate dashboard** — loader + Dashboard component (proves the stack works end-to-end)
-5. **Migrate API routes** — sessions, readings, additions, maintenance
-6. **Migrate remaining components** — TestSession, TestHistory, MaintenanceLog, DosingCalculator
-7. **Copy CSS** — drop in style.css
-8. **Test locally** — full flow on phone via local network
-9. **Deploy to Cloudflare** — wrangler deploy
-10. **Enable Cloudflare Access** — lock it down
-11. **Set up GitHub Actions** — automate deploys
-12. **Migrate data** — export from Val Town SQLite, import to D1 (if historical data matters)
+16. **Final testing**
+    - Run Vitest chemistry tests
+    - Manual testing on preview deployment:
+      - Full test session flow (all 4 tests)
+      - Session recovery (close mid-wizard, reopen)
+      - pH soft enforcement (enter bromine > 10, verify pH skip)
+      - pH override (tap "Test pH anyway")
+      - Maintenance logging (all 3 types, verify drain/refill reminder)
+      - Dashboard sparklines with data
+      - Error scenarios (disable network, verify toasts + auto-retry)
+      - Timer countdown behavior (full 15 min + early dismiss)
+      - Skip button per test
+      - Combined timeline in Settings → Log
+    - Test on actual phone at the hot tub (outdoor sunlight, wet hands)
 
 ---
 
-## Risk Assessment
+## Chemistry Reference (Unchanged)
 
-| Risk | Likelihood | Mitigation |
-|------|-----------|------------|
-| D1 SQL incompatibility | Low | D1 is SQLite — same dialect as Val Town |
-| React component breakage | Low | Components are simple, mainly import changes |
-| TestSession multi-step flow | Low | Keeping REST API routes for this flow |
-| Local dev D1 emulation issues | Low | Wrangler's local D1 emulation is mature |
-| Cloudflare Access setup confusion | Medium | Dashboard-only config, well-documented |
-| Data migration from Val Town | Medium | Small dataset, manual export/import is fine |
+### Test Ranges
+
+| Type | Key | Range | Ideal | Cadence |
+|---|---|---|---|---|
+| Total Alkalinity | `ta` | 50–70 ppm | 50–70 ppm | 21 days |
+| Bromine | `bromine` | 4–10 ppm | 4–6 ppm | 7 days |
+| pH | `ph` | 7.2–8.0 | 7.4–7.8 | 7 days |
+| Calcium Hardness | `calcium` | 130–400 ppm | 130–150 ppm | 21 days |
+
+### Dosing Constants (330 gal, 7.5% bleach)
+
+| Chemical | Amount | Equivalent |
+|---|---|---|
+| Bleach (shock) | 6.6 oz | 13.2 tbsp |
+| Sodium bromide (on refill) | 1.65 oz | 3.3 tbsp |
+| Baking soda (per 10 ppm TA) | 0.92 oz | 5.5 tsp |
+| Dry acid (per 0.2 pH) | 0.46 oz | 2.8 tsp |
+| Calcium chloride (per 10 ppm) | 0.48 oz | 2.9 tsp |
+
+### Drop-to-PPM (Taylor K-2106)
+
+| Test | Sample Size | PPM per Drop |
+|---|---|---|
+| Bromine | 25 ml | 0.5 |
+| Bromine | 10 ml | 1.25 |
+| TA | 25 ml | 10 |
+| Calcium | 25 ml | 10 |
+
+### Maintenance Cadence
+
+| Event | Cadence |
+|---|---|
+| pH + Bromine test | 7 days |
+| TA + Calcium test | 21 days |
+| Filter change | 30 days |
+| Water change | 30 days |
+| Drain & refill | 105 days |
+
+---
+
+## Key Differences from Existing Codebase
+
+| Aspect | Old (Val Town, never deployed) | New (Cloudflare) |
+|---|---|---|
+| Runtime | Val Town (Deno) | Cloudflare Pages (Workers) |
+| Framework | Hono + vanilla React | React Router v7 (framework mode) |
+| Database | Val Town SQLite | Cloudflare D1 |
+| Imports | URL imports (esm.sh) | Standard npm imports |
+| Data fetching | REST API + `window.__INITIAL_DATA__` | Server loaders + actions (no API routes) |
+| Styling | Single CSS file, dark theme | CSS Modules, light theme (outdoor-optimized) |
+| Navigation | 5 tabs, SPA state | 3 route-based tabs with sub-navigation |
+| Test wizard | All-at-once (before → recs → after) | Per-test sequential loops |
+| Test order | TA → pH → Bromine → Calcium | TA → Bromine → pH → Calcium |
+| pH enforcement | Warning text only | Soft auto-skip with override |
+| Session recovery | None | sessionStorage persistence (every input change) |
+| Error handling | None | Toasts + inline + auto-retry |
+| Dashboard trends | None | SVG sparklines (before + after) |
+| Settings | 3 separate tabs (History, Maintenance, Dosing) | Single tab with sub-tabs (Log, Maintenance, Reference) |
+| Activity log | Separate history + maintenance views | Combined timeline |
+| Header | Fixed "Hot Tub Time Machine" header | No header (more screen space) |
+| Auth | None | Cloudflare Access |
+| Deploy | `vt push` via GitHub Actions | Cloudflare Pages (git-triggered + PR previews) |
+| Migrations | Lazy (on first request) | Wrangler D1 migrations (at deploy time) |
+| Tests | None | Vitest (chemistry unit tests) |
+| Build | None (runtime TSX) | Vite (bundled) |
 
 ---
 
 ## What You Gain
 
-- **Normal dev experience**: `npm install`, `npm run dev`, standard TypeScript
-- **Auth for free**: Cloudflare Access, zero code
-- **No deployment scripting**: `wrangler deploy` or auto via GitHub Actions
+- **Normal dev experience**: `npm install`, `npm run dev`, standard TypeScript, HMR
+- **Auth for free**: Cloudflare Access, zero code changes
+- **Automatic deploys**: Push to main = production. PRs get preview URLs.
 - **Fast everywhere**: Edge-deployed, no cold starts
 - **Truly free**: Workers free tier = 100k req/day, D1 free tier = 5GB + 5M reads/day
-- **URL-based routing** (optional): Can add later for deep links to specific tabs
-- **Hot reload**: Vite HMR during development
+- **URL-based routing**: Browser back button works between tabs, deep links
+- **Improved UX**: Per-test wizard, session recovery, error handling, sparkline trends, light theme
+- **Idiomatic React Router**: Loaders/actions, SSR, progressive enhancement

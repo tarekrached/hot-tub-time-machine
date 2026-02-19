@@ -1,0 +1,9 @@
+name = "hot-tub-time-machine"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./build/client"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hot-tub-time-machine"
+database_id = "d574c92d-0858-4a53-a190-76c87cfedd18"

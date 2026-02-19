@@ -1,0 +1,23 @@
+.dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.active {
+  background: var(--color-blue);
+  transform: scale(1.2);
+}
+
+.completed {
+  background: var(--color-green);
+}

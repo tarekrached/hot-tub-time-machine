@@ -1,0 +1,284 @@
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.heading {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Test selection */
+.testList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.testOption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-border);
+  cursor: pointer;
+  min-height: 52px;
+  transition: border-color 0.15s;
+}
+
+.testSelected {
+  border-color: var(--color-blue);
+  background: var(--color-blue-bg);
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-blue);
+}
+
+.testName {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.suggestedBadge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--color-red);
+  background: var(--color-red-bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Input */
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.modeToggle,
+.sampleToggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.modeBtn,
+.sampleBtn {
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  min-height: 44px;
+}
+
+.modeBtn:last-child,
+.sampleBtn:last-child {
+  border-right: none;
+}
+
+.modeActive,
+.sampleActive {
+  background: var(--color-blue);
+  color: white;
+}
+
+.input {
+  width: 100%;
+  max-width: 200px;
+  padding: 14px 16px;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--color-blue);
+}
+
+.conversion {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Buttons */
+.btnRow {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btnPrimary {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  background: var(--color-blue);
+  border-radius: var(--radius-sm);
+  min-height: 48px;
+  min-width: 120px;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  min-height: 48px;
+}
+
+/* Recommendation */
+.inRange {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-green);
+}
+
+.checkIcon {
+  font-size: 28px;
+}
+
+.recList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recCard {
+  background: var(--color-yellow-bg);
+  border: 1px solid var(--color-yellow-border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+
+.recChemical {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.recAmount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-yellow);
+  margin: 4px 0;
+}
+
+.recReason {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* pH Skip */
+.phSkip {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.phSkipMsg {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  padding: 16px;
+  background: var(--color-yellow-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-yellow-border);
+}
+
+/* Resume Prompt */
+.resumePrompt {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.resumePrompt h2 {
+  font-size: 22px;
+}
+
+.resumePrompt p {
+  color: var(--color-text-secondary);
+}
+
+/* Summary */
+.summaryList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summaryItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.summaryLabel {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.summaryValues {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.summarySkipped {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.valGood {
+  color: var(--color-green);
+}
+
+.valBad {
+  color: var(--color-red);
+}
+
+.arrow {
+  color: var(--color-text-secondary);
+}

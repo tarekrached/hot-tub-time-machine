@@ -1,4 +1,4 @@
-import type { TestType } from "./types.ts";
+import type { TestType } from "./types";
 
 // Tub configuration
 export const TUB_GALLONS = 330;
@@ -6,8 +6,8 @@ export const BLEACH_CONCENTRATION = 7.5; // percent
 
 // Drop-to-PPM conversion for Taylor K-2106
 export const BROMINE_DROPS: Record<number, number> = {
-  25: 0.5,   // 25ml sample: 1 drop = 0.5 ppm
-  10: 1.25,  // 10ml sample: 1 drop = 1.25 ppm
+  25: 0.5, // 25ml sample: 1 drop = 0.5 ppm
+  10: 1.25, // 10ml sample: 1 drop = 1.25 ppm
 };
 
 // TA titration: 25ml sample, 1 drop = 10 ppm
@@ -18,7 +18,14 @@ export const TA_SAMPLE_SIZE_ML = 25;
 export const CALCIUM_PPM_PER_DROP = 10;
 export const CALCIUM_SAMPLE_SIZE_ML = 25;
 
-export function dropsToPpm(testType: TestType, drops: number, sampleSizeMl?: number): number {
+// Test order: TA first, then Bromine before pH (to enforce pH skip), Calcium last
+export const TEST_ORDER: TestType[] = ["ta", "bromine", "ph", "calcium"];
+
+export function dropsToPpm(
+  testType: TestType,
+  drops: number,
+  sampleSizeMl?: number
+): number {
   switch (testType) {
     case "bromine": {
       const size = sampleSizeMl || 25;
@@ -34,7 +41,11 @@ export function dropsToPpm(testType: TestType, drops: number, sampleSizeMl?: num
   }
 }
 
-export function ppmToDrops(testType: TestType, ppm: number, sampleSizeMl?: number): number {
+export function ppmToDrops(
+  testType: TestType,
+  ppm: number,
+  sampleSizeMl?: number
+): number {
   switch (testType) {
     case "bromine": {
       const size = sampleSizeMl || 25;
@@ -58,19 +69,23 @@ export function ppmToDrops(testType: TestType, ppm: number, sampleSizeMl?: numbe
 export const BLEACH_SHOCK_OZ = 6.6;
 
 // Sodium bromide on refill: 1/2 oz per 100 gal
-export const SODIUM_BROMIDE_OZ = Math.round((0.5 * TUB_GALLONS / 100) * 100) / 100; // 1.65 oz
+export const SODIUM_BROMIDE_OZ =
+  Math.round(((0.5 * TUB_GALLONS) / 100) * 100) / 100; // 1.65 oz
 
 // Baking soda to raise TA by 10 ppm: ~1.4 oz per 500 gal
 // For 330 gal: ~0.92 oz per 10 ppm raise
-export const BAKING_SODA_OZ_PER_10PPM = Math.round((1.4 * TUB_GALLONS / 500) * 100) / 100;
+export const BAKING_SODA_OZ_PER_10PPM =
+  Math.round(((1.4 * TUB_GALLONS) / 500) * 100) / 100;
 
 // Dry acid to lower pH by 0.2: ~0.7 oz per 500 gal
 // For 330 gal: ~0.46 oz per 0.2 pH drop
-export const DRY_ACID_OZ_PER_02PH = Math.round((0.7 * TUB_GALLONS / 500) * 100) / 100;
+export const DRY_ACID_OZ_PER_02PH =
+  Math.round(((0.7 * TUB_GALLONS) / 500) * 100) / 100;
 
 // Calcium chloride to raise CH by 10 ppm: ~0.73 oz per 500 gal
 // For 330 gal: ~0.48 oz per 10 ppm raise
-export const CALCIUM_CHLORIDE_OZ_PER_10PPM = Math.round((0.73 * TUB_GALLONS / 500) * 100) / 100;
+export const CALCIUM_CHLORIDE_OZ_PER_10PPM =
+  Math.round(((0.73 * TUB_GALLONS) / 500) * 100) / 100;
 
 export function ozToTablespoons(oz: number): number {
   return Math.round(oz * 2 * 10) / 10; // 1 oz = 2 tbsp
@@ -161,14 +176,14 @@ export function getRecommendations(
 
 // Cadence in days for when tests should be performed
 export const TEST_CADENCE_DAYS: Record<TestType, number> = {
-  ph: 7,       // weekly
-  bromine: 7,  // weekly
-  ta: 21,      // every 2-4 weeks (use 3 week default)
+  ph: 7, // weekly
+  bromine: 7, // weekly
+  ta: 21, // every 2-4 weeks (use 3 week default)
   calcium: 21, // every 2-4 weeks
 };
 
 // Maintenance cadence in days
-export const MAINTENANCE_CADENCE_DAYS = {
+export const MAINTENANCE_CADENCE_DAYS: Record<string, number> = {
   filter_change: 30,
   water_change: 30,
   drain_refill: 105, // ~3.5 months

@@ -40,7 +40,8 @@ Deployment is via GitHub Actions (`.github/workflows/deploy.yml`):
 1. Triggers on push to `main`
 2. Installs Node 22, runs `npm ci`, tests, and build
 3. Applies D1 migrations via `wrangler d1 migrations apply --remote`
-4. Deploys to Cloudflare Pages via `wrangler pages deploy`
+4. Creates the Pages project if it doesn't exist yet (`wrangler pages project create || true`)
+5. Deploys to Cloudflare Pages via `wrangler pages deploy`
 
 Required GitHub repo secrets:
 - **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers/Pages/D1 permissions
@@ -50,21 +51,48 @@ Required GitHub repo secrets:
 
 ```
 app/
-├── routes/           # React Router v7 route modules
-├── components/       # Shared UI components (Toast, StepDots, Timer, Sparkline)
-├── styles/           # CSS Modules
-├── root.tsx          # Root document
-└── routes.ts         # Route configuration
+├── root.tsx                    # Root document (html, head, body, Scripts)
+├── routes.ts                   # Route configuration
+├── routes/
+│   ├── _layout.tsx             # Root layout: bottom tab bar, error boundary, toast
+│   ├── _layout._index.tsx      # Dashboard (/)
+│   ├── _layout.test.tsx        # Test wizard (/test)
+│   ├── _layout.settings.tsx    # Settings layout with sub-tabs
+│   ├── _layout.settings._index.tsx       # Redirect to /settings/log
+│   ├── _layout.settings.log.tsx          # Combined timeline (/settings/log)
+│   ├── _layout.settings.maintenance.tsx  # Maintenance actions (/settings/maintenance)
+│   └── _layout.settings.reference.tsx    # Dosing reference (/settings/reference)
+├── components/
+│   ├── SparklineChart.tsx      # SVG sparkline for dashboard trend cards
+│   ├── StepDots.tsx            # Step progress indicator (● ○ ○ ○)
+│   ├── Timer.tsx               # 15-minute countdown timer
+│   └── ToastProvider.tsx       # Toast notification context provider
+└── styles/                     # CSS Modules
+    ├── global.css
+    ├── layout.module.css
+    ├── dashboard.module.css
+    ├── test-wizard.module.css
+    ├── timeline.module.css
+    ├── settings.module.css
+    ├── maintenance.module.css
+    ├── reference.module.css
+    ├── step-dots.module.css
+    ├── timer.module.css
+    └── toast.module.css
 shared/
-├── chemistry.ts      # Dosing calculations, drop-to-PPM, test cadence
-└── types.ts          # TypeScript interfaces, constants, ranges
+├── chemistry.ts                # Dosing calculations, drop-to-PPM, test cadence
+└── types.ts                    # TypeScript interfaces, constants, ranges
 server/
-└── db.ts             # D1 query functions
+└── db.ts                       # D1 query functions
 migrations/
-└── 0001_initial.sql  # D1 migration
+└── 0001_initial.sql            # D1 migration
 tests/
-└── chemistry.test.ts # Vitest unit tests
+└── chemistry.test.ts           # Vitest unit tests
+docs/
+└── bromine-3-step-method.md    # Bromine 3-step method reference
 ```
+
+**Legacy directories** (`backend/`, `frontend/`) contain the original Val Town app code that served as a specification for the Cloudflare rebuild. They are not used at runtime.
 
 ## Database Schema
 

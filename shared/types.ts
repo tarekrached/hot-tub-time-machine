@@ -10,7 +10,7 @@ export interface TestReading {
   session_id: number;
   test_type: TestType;
   phase: "before" | "after";
-  value_ppm: number | null;
+  value_ppm: number;
   raw_drops: number | null;
   sample_size_ml: number | null;
   created_at: string;
@@ -79,4 +79,12 @@ export interface DashboardData {
 export interface SessionDetail extends TestSession {
   readings: TestReading[];
   additions: ChemicalAddition[];
+}
+
+export interface TimelineEntry {
+  type: "session" | "maintenance";
+  id: number;
+  date: string;
+  session?: SessionDetail;
+  maintenance?: MaintenanceEvent;
 }

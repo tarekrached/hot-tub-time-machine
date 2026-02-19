@@ -1,0 +1,100 @@
+.empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-text-secondary);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.entry {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.entry:last-child {
+  border-bottom: none;
+}
+
+.entryDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.entryDot[data-type="session"] {
+  background: var(--color-blue);
+}
+
+.entryDot[data-type="maintenance"] {
+  background: var(--color-green);
+}
+
+.entryContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.entryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.entryTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.entryTime {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.entryNotes {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.readingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.readingRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.readingLabel {
+  color: var(--color-text-secondary);
+}
+
+.readingValues {
+  font-weight: 600;
+}
+
+.good {
+  color: var(--color-green);
+}
+
+.bad {
+  color: var(--color-red);
+}
+
+.arrow {
+  color: var(--color-text-secondary);
+}

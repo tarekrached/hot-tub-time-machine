@@ -2,23 +2,27 @@
 
 ## Project Overview
 
-Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed as a private/unlisted val on Val Town. It replaces a printed cheat sheet used to record chemical levels before and after balancing. It uses a Hono backend (based on the reactHonoStarter template) with Val Town's built-in SQLite, a React frontend served as static files, and a GitHub Actions workflow to deploy via the `vt` CLI.
+Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on Cloudflare Pages with D1 database. It replaces a printed cheat sheet used to record chemical levels before and after balancing. Built with React Router v7 (framework mode) for SSR, loaders, and actions.
 
 ## Architecture
 
-- **Runtime**: Val Town (Deno-based). All imports use URL imports (`https://esm.sh/`, `https://esm.town/`).
-- **Backend**: Hono app in `backend/index.ts`. Routes serve the frontend, a REST API for sessions/readings/additions/maintenance, and a dashboard endpoint.
-- **Frontend**: React TSX components in `frontend/components/`. Served as static files via Val Town's `serveFile` utility. Initial dashboard data is bootstrapped into the HTML via `window.__INITIAL_DATA__`.
-- **Database**: Val Town SQLite (`https://esm.town/v/std/sqlite`). Migrations run lazily on first request. Tables: `test_sessions`, `test_readings`, `chemical_additions`, `maintenance_events`.
-- **Shared code**: `shared/types.ts` has all TypeScript interfaces and constants. `shared/chemistry.ts` has dosing calculations, drop-to-PPM conversions, and test cadence logic.
+- **Runtime**: Cloudflare Pages (Workers runtime)
+- **Framework**: React Router v7 (framework mode) with SSR
+- **Database**: Cloudflare D1 (SQLite). Migrations in `migrations/` applied via `wrangler d1 migrations apply`.
+- **Styling**: CSS Modules, light theme optimized for outdoor readability
+- **Data Pattern**: Server loaders for reads, actions for mutations. No REST API routes.
+- **Shared code**: `shared/types.ts` has TypeScript interfaces and constants. `shared/chemistry.ts` has dosing calculations, drop-to-PPM conversions, and test cadence logic.
+- **Server code**: `server/db.ts` has all D1 query functions.
+- **Testing**: Vitest for chemistry unit tests
 
 ## Key Conventions
 
-- Entry point is `index.ts` which re-exports `backend/index.ts`.
-- No build step — TypeScript files are served and executed directly by Val Town/Deno.
-- Chemistry constants are calibrated for a 330-gallon tub using Taylor K-2106 test kit and 7.5% disinfecting bleach (higher concentration than regular bleach).
-- All dosing functions live in `shared/chemistry.ts` and are shared between frontend and backend.
-- The app is designed to be used on a phone while standing at the hot tub.
+- Standard npm imports (no URL imports)
+- `npm run dev` for local development, `npm run build` for production build
+- Chemistry constants are calibrated for a 330-gallon tub using Taylor K-2106 test kit and 7.5% disinfecting bleach
+- All dosing functions live in `shared/chemistry.ts` and are shared between frontend and backend
+- Test order: TA → Bromine → pH → Calcium (bromine before pH to enforce pH skip when bromine > 10 ppm)
+- The app is designed to be used on a phone while standing at the hot tub
 
 ## Chemistry Reference
 
@@ -34,12 +38,33 @@ Key design decisions from the source:
 
 Deployment is via GitHub Actions (`.github/workflows/deploy.yml`):
 1. Triggers on push to `main`
-2. Installs Deno and the `vt` CLI
-3. Clones the Val Town project, copies source files over, and runs `vt push`
+2. Installs Node 22, runs `npm ci`, tests, and build
+3. Applies D1 migrations via `wrangler d1 migrations apply --remote`
+4. Deploys to Cloudflare Pages via `wrangler pages deploy`
 
-Required GitHub repo configuration:
-- **Secret**: `VAL_TOWN_API_KEY` — Val Town API token with user:read, val:read+write, and telemetry:read scopes
-- **Variable**: `VT_PROJECT` — Val Town project name (e.g. `username/hot-tub-time-machine`)
+Required GitHub repo secrets:
+- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers/Pages/D1 permissions
+- **`CLOUDFLARE_ACCOUNT_ID`** — Cloudflare account ID
+
+## Project Structure
+
+```
+app/
+├── routes/           # React Router v7 route modules
+├── components/       # Shared UI components (Toast, StepDots, Timer, Sparkline)
+├── styles/           # CSS Modules
+├── root.tsx          # Root document
+└── routes.ts         # Route configuration
+shared/
+├── chemistry.ts      # Dosing calculations, drop-to-PPM, test cadence
+└── types.ts          # TypeScript interfaces, constants, ranges
+server/
+└── db.ts             # D1 query functions
+migrations/
+└── 0001_initial.sql  # D1 migration
+tests/
+└── chemistry.test.ts # Vitest unit tests
+```
 
 ## Database Schema
 
@@ -48,18 +73,15 @@ Required GitHub repo configuration:
 - `chemical_additions` — id, session_id (FK), chemical, amount_oz, created_at
 - `maintenance_events` — id, event_type, created_at, notes
 
-## API Routes
+## Routes
 
-- `GET /` — Serves frontend HTML with bootstrapped dashboard data
-- `GET /api/dashboard` — Dashboard summary (last tests, last maintenance, suggested tests, recent sessions)
-- `POST /api/sessions` — Create test session
-- `PUT /api/sessions/:id` — Complete a session
-- `GET /api/sessions` — List sessions (with `?limit=`)
-- `GET /api/sessions/:id` — Get session detail with readings and additions
-- `POST /api/readings` — Add a test reading
-- `POST /api/additions` — Add a chemical addition
-- `POST /api/maintenance` — Log maintenance event
-- `GET /api/maintenance` — List maintenance events (with `?limit=`)
+| Route | Purpose |
+|---|---|
+| `/` | Dashboard — status cards with urgency coloring, sparkline trends |
+| `/test` | Test wizard — per-test sequential flow with session recovery |
+| `/settings/log` | Combined timeline of test sessions and maintenance events |
+| `/settings/maintenance` | Action buttons to log maintenance + drain/refill bromide reminder |
+| `/settings/reference` | Static dosing tables, drop-to-PPM reference, test schedule |
 
 ## Test Types and Ranges
 

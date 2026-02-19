@@ -1,0 +1,42 @@
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.subTabs {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.subTab {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border);
+  transition: background 0.15s, color 0.15s;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subTab:last-child {
+  border-right: none;
+}
+
+.subTabActive {
+  background: var(--color-blue);
+  color: white;
+}
+
+.subContent {
+  min-height: 200px;
+}

@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/_layout.settings.log";
 import { getTimeline } from "server/db";
-import { timeSinceLabel } from "shared/chemistry";
+import { timeSinceLabel, formatPhValue } from "shared/chemistry";
 import {
   TEST_LABELS,
   MAINTENANCE_LABELS,
@@ -93,14 +93,14 @@ export default function LogPage() {
                         <span className={styles.readingValues}>
                           {before && (
                             <span className={beforeOk ? styles.good : styles.bad}>
-                              {before.value_ppm}
+                              {tt === "ph" ? formatPhValue(before.value_ppm) : before.value_ppm}
                             </span>
                           )}
                           {after && (
                             <>
                               <span className={styles.arrow}> → </span>
                               <span className={afterOk ? styles.good : styles.bad}>
-                                {after.value_ppm}
+                                {tt === "ph" ? formatPhValue(after.value_ppm) : after.value_ppm}
                               </span>
                             </>
                           )}

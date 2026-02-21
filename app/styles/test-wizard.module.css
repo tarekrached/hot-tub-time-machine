@@ -201,6 +201,98 @@
   color: var(--color-text-secondary);
 }
 
+/* pH Slider */
+.phSlider {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  padding: 8px 0;
+}
+
+.phValue {
+  font-size: 56px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+  padding: 8px 0;
+  transition: color 0.15s;
+}
+
+.phValueGood {
+  color: var(--color-green);
+}
+
+.phValueWarning {
+  color: var(--color-yellow);
+}
+
+.phValueBad {
+  color: var(--color-red);
+}
+
+.phRangeInput {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.phRangeInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-blue);
+  cursor: grab;
+  border: 3px solid white;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.phRangeInput::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-blue);
+  cursor: grab;
+  border: 3px solid white;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+/* Zone strip: indices 0-2=low, 3-4=borderline, 5-9=ideal, 10=borderline, 11-12=high */
+/* Percentages: 0/12=0%, 3/12=25%, 5/12=41.7%, 9/12=75%, 10/12=83.3%, 12/12=100% */
+.phZoneStrip {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--color-red-bg) 0%,
+    var(--color-red-bg) 16.7%,
+    var(--color-yellow-bg) 25%,
+    var(--color-green-bg) 41.7%,
+    var(--color-green-bg) 75%,
+    var(--color-yellow-bg) 83.3%,
+    var(--color-red-bg) 91.7%,
+    var(--color-red-bg) 100%
+  );
+  border: 1px solid var(--color-border);
+}
+
+.phEndLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
 /* pH Skip */
 .phSkip {
   display: flex;

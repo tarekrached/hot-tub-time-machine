@@ -2,18 +2,20 @@
 
 ## Project Overview
 
-Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on Cloudflare Pages with D1 database. It replaces a printed cheat sheet used to record chemical levels before and after balancing. Built with React Router v7 (framework mode) for SSR, loaders, and actions.
+Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D1 database. It replaces a printed cheat sheet used to record chemical levels before and after balancing. Built with React Router v7 (framework mode) for SSR, loaders, and actions.
 
 ## Architecture
 
-- **Runtime**: Cloudflare Pages (Workers runtime)
-- **Framework**: React Router v7 (framework mode) with SSR
+- **Runtime**: Cloudflare Workers with static assets
+- **Framework**: React Router v7 (framework mode) with SSR, using `@cloudflare/vite-plugin` and `v8_viteEnvironmentApi`
 - **Database**: Cloudflare D1 (SQLite). Migrations in `migrations/` applied via `wrangler d1 migrations apply`.
 - **Styling**: CSS Modules, light theme optimized for outdoor readability
 - **Data Pattern**: Server loaders for reads, actions for mutations. No REST API routes.
+- **Worker entry**: `workers/app.ts` is the Cloudflare Worker entry point. It wires up React Router's `createRequestHandler` and provides `context.cloudflare.env` (with D1 binding) to loaders/actions.
+- **Server rendering**: `app/entry.server.tsx` uses `renderToReadableStream` (Web Streams API, Cloudflare-compatible).
 - **Shared code**: `shared/types.ts` has TypeScript interfaces and constants. `shared/chemistry.ts` has dosing calculations, drop-to-PPM conversions, and test cadence logic.
 - **Server code**: `server/db.ts` has all D1 query functions.
-- **Testing**: Vitest for chemistry unit tests
+- **Testing**: Vitest for chemistry unit tests (separate `vitest.config.ts` to avoid Cloudflare plugin conflicts)
 
 ## Key Conventions
 
@@ -40,17 +42,21 @@ Deployment is via GitHub Actions (`.github/workflows/deploy.yml`):
 1. Triggers on push to `main`
 2. Installs Node 22, runs `npm ci`, tests, and build
 3. Applies D1 migrations via `wrangler d1 migrations apply --remote`
-4. Creates the Pages project if it doesn't exist yet (`wrangler pages project create || true`)
-5. Deploys to Cloudflare Pages via `wrangler pages deploy`
+4. Deploys to Cloudflare Workers via `wrangler deploy --config build/server/wrangler.json`
+
+The build (`react-router build`) produces `build/client/` (static assets) and `build/server/` (worker bundle + generated `wrangler.json` with `no_bundle: true`). The generated config points the worker at the pre-bundled output and the static assets directory.
 
 Required GitHub repo secrets:
-- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers/Pages/D1 permissions
+- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers Scripts:Edit, Workers Routes:Edit, D1:Edit, and Account Settings:Read permissions
 - **`CLOUDFLARE_ACCOUNT_ID`** — Cloudflare account ID
 
 ## Project Structure
 
 ```
+workers/
+└── app.ts                      # Cloudflare Worker entry point (fetch handler)
 app/
+├── entry.server.tsx            # SSR entry using renderToReadableStream
 ├── root.tsx                    # Root document (html, head, body, Scripts)
 ├── routes.ts                   # Route configuration
 ├── routes/
@@ -127,3 +133,12 @@ docs/
 ## Maintenance Types
 
 `filter_change` (30 days), `water_change` (30 days), `drain_refill` (105 days)
+
+## Keeping Docs Up to Date
+
+When making changes to the project, update the documentation in the same commit:
+
+- **CLAUDE.md** — Update if you change architecture, add/remove files or directories, modify deployment, change database schema, add routes, or alter conventions. This is the primary source of truth for how the project works.
+- **README.md** — Update if changes affect the tech stack description, development commands, deployment instructions, or feature list. This is the public-facing overview.
+
+Do not let documentation drift from the code. If you add a new route, file, dependency, or config change, reflect it in the relevant sections of both files.

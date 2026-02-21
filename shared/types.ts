@@ -50,7 +50,7 @@ export interface TestRange {
 }
 
 export const TEST_RANGES: Record<TestType, TestRange> = {
-  ph: { min: 7.2, max: 8.0, idealMin: 7.4, idealMax: 7.8, unit: "" },
+  ph: { min: 6.8, max: 8.2, idealMin: 7.4, idealMax: 7.8, unit: "" },
   bromine: { min: 4, max: 10, idealMin: 4, idealMax: 6, unit: "ppm" },
   ta: { min: 50, max: 70, idealMin: 50, idealMax: 70, unit: "ppm" },
   calcium: { min: 130, max: 400, idealMin: 130, idealMax: 150, unit: "ppm" },

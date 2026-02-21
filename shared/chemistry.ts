@@ -145,13 +145,13 @@ export function getRecommendations(
         recs.push({
           chemical: "Dry Acid (sodium bisulfate)",
           amount: `${oz} oz (${ozToTeaspoons(oz)} tsp)`,
-          reason: `pH is high (${currentValue}). Lower to ~7.6.`,
+          reason: `pH is high (${formatPhValue(currentValue)}). Lower to ~7.6.`,
         });
       } else if (currentValue < 7.2) {
         recs.push({
           chemical: "Aeration / Borax",
           amount: "Run jets with cover open, or add borax",
-          reason: `pH is low (${currentValue}). Aeration raises pH naturally.`,
+          reason: `pH is low (${formatPhValue(currentValue)}). Aeration raises pH naturally.`,
         });
       }
       break;
@@ -188,6 +188,12 @@ export const MAINTENANCE_CADENCE_DAYS: Record<string, number> = {
   water_change: 30,
   drain_refill: 105, // ~3.5 months
 };
+
+export function formatPhValue(ppm: number): string {
+  if (ppm < 7.0) return "<7.0";
+  if (ppm > 8.0) return ">8.0";
+  return (Math.round(ppm * 10) / 10).toString();
+}
 
 export function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;

@@ -17,6 +17,16 @@ Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on C
 - **Server code**: `server/db.ts` has all D1 query functions.
 - **Testing**: Vitest for chemistry unit tests (separate `vitest.config.ts` to avoid Cloudflare plugin conflicts)
 
+## Local Development
+
+```bash
+npm install
+npx wrangler d1 migrations apply hot-tub-time-machine --local  # required on first run / new worktree
+npm run dev
+```
+
+The local D1 database lives in `.wrangler/state/v3/d1/`. Migrations must be applied before `npm run dev` will serve pages without a 500 error. This is separate from `--remote` which targets the production database.
+
 ## Key Conventions
 
 - Standard npm imports (no URL imports)
@@ -31,7 +41,7 @@ Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on C
 The chemistry and maintenance schedule is based on the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/). A full copy of the source material is saved in `docs/bromine-3-step-method.md`.
 
 Key design decisions from the source:
-- **Titrating tests**: The app supports entering raw drop counts instead of PPM values. The bromine test has two sample size options (10ml vs 25ml) with different PPM-per-drop ratios.
+- **Titrating tests**: The app supports entering raw drop counts instead of PPM values. The bromine test has two sample size options (10ml vs 25ml) with different PPM-per-drop ratios. pH is not a titrating test — it uses a swipe slider with 13 discrete stops from `<7.0` to `>8.0` (out-of-range sentinels stored as 6.8 and 8.2; `formatPhValue()` in `shared/chemistry.ts` converts these back to display strings).
 - **Test order matters**: TA should be adjusted before pH. pH cannot be accurately tested when sanitizer is above 10 ppm (Taylor kit limit).
 - **Shock dosing**: Uses bleach to oxidize the bromide bank. No additional sodium bromide is needed for weekly shock — only on drain/refill.
 - **Maintenance cadence**: The app tracks time since last test and proposes appropriate tests on open. Weekly: pH & bromine. Every 2–4 weeks: TA & calcium. Every 3–4 months: drain, refill, rebalance, re-add sodium bromide.

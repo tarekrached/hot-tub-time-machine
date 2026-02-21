@@ -9,6 +9,7 @@ import {
   ozToTeaspoons,
   ozToTablespoons,
   TEST_ORDER,
+  formatPhValue,
 } from "shared/chemistry";
 import { TEST_LABELS, TEST_RANGES } from "shared/types";
 import type { TestType } from "shared/types";
@@ -23,6 +24,10 @@ import {
 import styles from "~/styles/test-wizard.module.css";
 
 const STORAGE_KEY = "hottub_wizard_state";
+
+// pH slider: 13 discrete stops covering <7.0 through >8.0
+const PH_VALUES = [6.8, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.2];
+const PH_DEFAULT_INDEX = 6; // 7.5 — center of range
 
 interface WizardState {
   sessionId: number | null;
@@ -130,6 +135,7 @@ export default function TestWizard() {
   const [inputMode, setInputMode] = useState<"ppm" | "drops">("drops");
   const [inputValue, setInputValue] = useState("");
   const [sampleSize, setSampleSize] = useState<number>(25);
+  const [phIndex, setPhIndex] = useState(PH_DEFAULT_INDEX);
 
   // Check for resume on mount
   useEffect(() => {
@@ -185,6 +191,7 @@ export default function TestWizard() {
     sessionStorage.removeItem(STORAGE_KEY);
     setState({ ...initialState });
     setShowResume(false);
+    setPhIndex(PH_DEFAULT_INDEX);
   };
 
   const handleStartFresh = () => {
@@ -216,13 +223,16 @@ export default function TestWizard() {
   const canUseDrop = currentTest && currentTest !== "ph";
 
   const handleSubmitReading = (phase: "before" | "after") => {
-    if (!currentTest || !state.sessionId || !inputValue) return;
+    if (!currentTest || !state.sessionId) return;
+    if (currentTest !== "ph" && !inputValue) return;
 
     let ppm: number;
     let rawDrops: number | null = null;
     let sampleSizeMl: number | null = null;
 
-    if (inputMode === "drops" && canUseDrop) {
+    if (currentTest === "ph") {
+      ppm = PH_VALUES[phIndex];
+    } else if (inputMode === "drops" && canUseDrop) {
       rawDrops = Number(inputValue);
       sampleSizeMl = currentTest === "bromine" ? sampleSize : 25;
       ppm = dropsToPpm(currentTest, rawDrops, sampleSizeMl);
@@ -349,6 +359,7 @@ export default function TestWizard() {
     }
     setInputValue("");
     setInputMode("drops");
+    setPhIndex(PH_DEFAULT_INDEX);
   };
 
   const handleOverridePh = () => {
@@ -478,7 +489,7 @@ export default function TestWizard() {
                     <span
                       className={beforeInRange ? styles.valGood : styles.valBad}
                     >
-                      {before.ppm}
+                      {tt === "ph" ? formatPhValue(before.ppm) : before.ppm}
                       {before.drops !== undefined && (
                         <small> ({before.drops} drops)</small>
                       )}
@@ -491,7 +502,7 @@ export default function TestWizard() {
                             afterInRange ? styles.valGood : styles.valBad
                           }
                         >
-                          {after.ppm}
+                          {tt === "ph" ? formatPhValue(after.ppm) : after.ppm}
                           {after.drops !== undefined && (
                             <small> ({after.drops} drops)</small>
                           )}
@@ -550,71 +561,100 @@ export default function TestWizard() {
 
   // Re-test step
   if (state.step === "retest") {
+    const phPpm = PH_VALUES[phIndex];
+    const phZoneRetest =
+      phPpm >= 7.4 && phPpm <= 7.8
+        ? styles.phValueGood
+        : phPpm >= 7.2 && phPpm <= 8.0
+          ? styles.phValueWarning
+          : styles.phValueBad;
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={currentStepNum} />
         <h2 className={styles.heading}>Re-test {TEST_LABELS[currentTest]}</h2>
-        <div className={styles.inputGroup}>
-          {canUseDrop && (
-            <div className={styles.modeToggle}>
-              <button
-                className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
-                onClick={() => {
-                  setInputMode("drops");
-                  setInputValue("");
-                }}
-              >
-                Drops
-              </button>
-              <button
-                className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
-                onClick={() => {
-                  setInputMode("ppm");
-                  setInputValue("");
-                }}
-              >
-                PPM
-              </button>
+        {currentTest === "ph" ? (
+          <div className={styles.phSlider}>
+            <div className={`${styles.phValue} ${phZoneRetest}`}>
+              {formatPhValue(phPpm)}
             </div>
-          )}
-          {canUseDrop &&
-            inputMode === "drops" &&
-            currentTest === "bromine" && (
-              <div className={styles.sampleToggle}>
+            <input
+              type="range"
+              min={0}
+              max={12}
+              step={1}
+              value={phIndex}
+              onChange={(e) => setPhIndex(Number(e.target.value))}
+              className={styles.phRangeInput}
+            />
+            <div className={styles.phZoneStrip} />
+            <div className={styles.phEndLabels}>
+              <span>&lt;7.0</span>
+              <span>&gt;8.0</span>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.inputGroup}>
+            {canUseDrop && (
+              <div className={styles.modeToggle}>
                 <button
-                  className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
-                  onClick={() => setSampleSize(25)}
+                  className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
+                  onClick={() => {
+                    setInputMode("drops");
+                    setInputValue("");
+                  }}
                 >
-                  25 ml
+                  Drops
                 </button>
                 <button
-                  className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
-                  onClick={() => setSampleSize(10)}
+                  className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
+                  onClick={() => {
+                    setInputMode("ppm");
+                    setInputValue("");
+                  }}
                 >
-                  10 ml
+                  PPM
                 </button>
               </div>
             )}
-          <input
-            type="number"
-            inputMode="decimal"
-            className={styles.input}
-            placeholder={
-              inputMode === "drops" && canUseDrop ? "Drop count" : "PPM value"
-            }
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            autoFocus
-          />
-          {conversionDisplay && (
-            <div className={styles.conversion}>{conversionDisplay}</div>
-          )}
-        </div>
+            {canUseDrop &&
+              inputMode === "drops" &&
+              currentTest === "bromine" && (
+                <div className={styles.sampleToggle}>
+                  <button
+                    className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
+                    onClick={() => setSampleSize(25)}
+                  >
+                    25 ml
+                  </button>
+                  <button
+                    className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
+                    onClick={() => setSampleSize(10)}
+                  >
+                    10 ml
+                  </button>
+                </div>
+              )}
+            <input
+              type="number"
+              inputMode="decimal"
+              className={styles.input}
+              placeholder={
+                inputMode === "drops" && canUseDrop ? "Drop count" : "PPM value"
+              }
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              autoFocus
+            />
+            {conversionDisplay && (
+              <div className={styles.conversion}>{conversionDisplay}</div>
+            )}
+          </div>
+        )}
         <div className={styles.btnRow}>
           <button
             className={styles.btnPrimary}
             onClick={() => handleSubmitReading("after")}
-            disabled={!inputValue || fetcher.state !== "idle"}
+            disabled={(currentTest !== "ph" && !inputValue) || fetcher.state !== "idle"}
           >
             Submit
           </button>
@@ -678,73 +718,99 @@ export default function TestWizard() {
   }
 
   // Input step
+  const phPpm = PH_VALUES[phIndex];
+  const phZone =
+    phPpm >= 7.4 && phPpm <= 7.8
+      ? styles.phValueGood
+      : phPpm >= 7.2 && phPpm <= 8.0
+        ? styles.phValueWarning
+        : styles.phValueBad;
+
   return (
     <div className={styles.wizard}>
       <StepDots total={totalSteps} current={currentStepNum} />
       <h2 className={styles.heading}>{TEST_LABELS[currentTest]}</h2>
-      <div className={styles.inputGroup}>
-        {canUseDrop && (
-          <div className={styles.modeToggle}>
-            <button
-              className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
-              onClick={() => {
-                setInputMode("drops");
-                setInputValue("");
-              }}
-            >
-              Drops
-            </button>
-            <button
-              className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
-              onClick={() => {
-                setInputMode("ppm");
-                setInputValue("");
-              }}
-            >
-              PPM
-            </button>
+      {currentTest === "ph" ? (
+        <div className={styles.phSlider}>
+          <div className={`${styles.phValue} ${phZone}`}>
+            {formatPhValue(phPpm)}
           </div>
-        )}
-        {canUseDrop && inputMode === "drops" && currentTest === "bromine" && (
-          <div className={styles.sampleToggle}>
-            <button
-              className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
-              onClick={() => setSampleSize(25)}
-            >
-              25 ml
-            </button>
-            <button
-              className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
-              onClick={() => setSampleSize(10)}
-            >
-              10 ml
-            </button>
+          <input
+            type="range"
+            min={0}
+            max={12}
+            step={1}
+            value={phIndex}
+            onChange={(e) => setPhIndex(Number(e.target.value))}
+            className={styles.phRangeInput}
+          />
+          <div className={styles.phZoneStrip} />
+          <div className={styles.phEndLabels}>
+            <span>&lt;7.0</span>
+            <span>&gt;8.0</span>
           </div>
-        )}
-        <input
-          type="number"
-          inputMode="decimal"
-          className={styles.input}
-          placeholder={
-            inputMode === "drops" && canUseDrop
-              ? "Drop count"
-              : currentTest === "ph"
-                ? "pH value"
-                : "PPM value"
-          }
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          autoFocus
-        />
-        {conversionDisplay && (
-          <div className={styles.conversion}>{conversionDisplay}</div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className={styles.inputGroup}>
+          {canUseDrop && (
+            <div className={styles.modeToggle}>
+              <button
+                className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
+                onClick={() => {
+                  setInputMode("drops");
+                  setInputValue("");
+                }}
+              >
+                Drops
+              </button>
+              <button
+                className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
+                onClick={() => {
+                  setInputMode("ppm");
+                  setInputValue("");
+                }}
+              >
+                PPM
+              </button>
+            </div>
+          )}
+          {canUseDrop && inputMode === "drops" && currentTest === "bromine" && (
+            <div className={styles.sampleToggle}>
+              <button
+                className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
+                onClick={() => setSampleSize(25)}
+              >
+                25 ml
+              </button>
+              <button
+                className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
+                onClick={() => setSampleSize(10)}
+              >
+                10 ml
+              </button>
+            </div>
+          )}
+          <input
+            type="number"
+            inputMode="decimal"
+            className={styles.input}
+            placeholder={
+              inputMode === "drops" && canUseDrop ? "Drop count" : "PPM value"
+            }
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            autoFocus
+          />
+          {conversionDisplay && (
+            <div className={styles.conversion}>{conversionDisplay}</div>
+          )}
+        </div>
+      )}
       <div className={styles.btnRow}>
         <button
           className={styles.btnPrimary}
           onClick={() => handleSubmitReading("before")}
-          disabled={!inputValue || fetcher.state !== "idle"}
+          disabled={(currentTest !== "ph" && !inputValue) || fetcher.state !== "idle"}
         >
           Submit
         </button>

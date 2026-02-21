@@ -1,6 +1,6 @@
 # Hot Tub Time Machine
 
-A mobile-friendly hot tub chemical tracker deployed on Cloudflare Pages with D1 database. Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from your phone while standing at the hot tub.
+A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D1 database. Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from your phone while standing at the hot tub.
 
 ## Features
 
@@ -13,12 +13,12 @@ A mobile-friendly hot tub chemical tracker deployed on Cloudflare Pages with D1 
 
 ## Tech Stack
 
-- **Runtime**: Cloudflare Pages (Workers runtime)
-- **Framework**: [React Router v7](https://reactrouter.com/) (framework mode) with SSR
+- **Runtime**: Cloudflare Workers with static assets
+- **Framework**: [React Router v7](https://reactrouter.com/) (framework mode) with SSR via `@cloudflare/vite-plugin`
 - **Database**: Cloudflare D1 (SQLite)
 - **Styling**: CSS Modules, light theme optimized for outdoor readability
 - **Testing**: Vitest for chemistry unit tests
-- **Deployment**: GitHub Actions → Cloudflare Pages via Wrangler
+- **Deployment**: GitHub Actions → Cloudflare Workers via Wrangler
 
 ## Development
 
@@ -42,11 +42,11 @@ Configured for a **330-gallon** hot tub using the [bromine 3-step method](https:
 
 ## Deployment
 
-The app deploys to Cloudflare Pages automatically on push to `main` via GitHub Actions.
+The app deploys to Cloudflare Workers automatically on push to `main` via GitHub Actions.
 
 ### Required GitHub repo secrets
 
-- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers/Pages/D1 permissions
+- **`CLOUDFLARE_API_TOKEN`** — Cloudflare API token with Workers Scripts:Edit, Workers Routes:Edit, D1:Edit, and Account Settings:Read permissions
 - **`CLOUDFLARE_ACCOUNT_ID`** — Cloudflare account ID
 
 ### Manual deploy
@@ -54,7 +54,7 @@ The app deploys to Cloudflare Pages automatically on push to `main` via GitHub A
 ```bash
 npm run build
 npx wrangler d1 migrations apply hot-tub-time-machine --remote
-npx wrangler pages deploy ./build/client --project-name=hot-tub-time-machine
+npx wrangler deploy --config build/server/wrangler.json
 ```
 
 ## Routes

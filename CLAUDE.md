@@ -22,10 +22,34 @@ Hot Tub Time Machine is a mobile-friendly hot tub chemical tracker deployed on C
 ```bash
 npm install
 npx wrangler d1 migrations apply hot-tub-time-machine --local  # required on first run / new worktree
+npx wrangler d1 execute hot-tub-time-machine --local --file=seeds/historical.sql  # load seed data
 npm run dev
 ```
 
 The local D1 database lives in `.wrangler/state/v3/d1/`. Migrations must be applied before `npm run dev` will serve pages without a 500 error. This is separate from `--remote` which targets the production database.
+
+## Backup & Restore
+
+`seeds/historical.sql` is committed to git and serves as both local dev seed data and a periodic production backup. It contains all historical sessions and is safe to re-run (`INSERT OR IGNORE`).
+
+Update the seed file from production whenever you want a snapshot committed to the repo:
+
+```bash
+npx wrangler d1 export hot-tub-time-machine --remote --no-schema --output=seeds/historical.sql
+git add seeds/historical.sql && git commit -m "chore: update DB seed"
+```
+
+Restore locally (delete `.wrangler/state/v3/d1/`, re-apply migrations, then seed):
+
+```bash
+npx wrangler d1 execute hot-tub-time-machine --local --file=seeds/historical.sql
+```
+
+Restore to production (after fresh migration apply on a new database):
+
+```bash
+npx wrangler d1 execute hot-tub-time-machine --remote --file=seeds/historical.sql
+```
 
 ## Key Conventions
 
@@ -63,6 +87,8 @@ Required GitHub repo secrets:
 ## Project Structure
 
 ```
+seeds/
+└── historical.sql              # Historical seed data (32 sessions); update periodically via wrangler export
 workers/
 └── app.ts                      # Cloudflare Worker entry point (fetch handler)
 app/

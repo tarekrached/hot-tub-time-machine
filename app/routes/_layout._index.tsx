@@ -40,11 +40,7 @@ function getUrgency(
 export default function Dashboard() {
   const { dashboard, sparklines } = useLoaderData<typeof loader>();
   const testTypes: TestType[] = ["ph", "bromine", "ta", "calcium"];
-  const maintTypes: MaintenanceType[] = [
-    "filter_change",
-    "water_change",
-    "drain_refill",
-  ];
+  const maintTypes: MaintenanceType[] = ["filter_change", "water_change"];
 
   return (
     <div className={styles.dashboard}>

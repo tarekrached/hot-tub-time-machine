@@ -210,13 +210,17 @@ export async function getDashboardData(
   const lastMaintenance: Record<string, string | null> = {};
 
   for (const mt of maintTypes) {
+    // drain_refill also satisfies water_change (a full drain is a water change)
+    const eventTypes =
+      mt === "water_change" ? ["water_change", "drain_refill"] : [mt];
+    const placeholders = eventTypes.map(() => "?").join(", ");
     const row = await db
       .prepare(
         `SELECT MAX(created_at) as last_date
          FROM maintenance_events
-         WHERE event_type = ?`
+         WHERE event_type IN (${placeholders})`
       )
-      .bind(mt)
+      .bind(...eventTypes)
       .first<{ last_date: string | null }>();
     lastMaintenance[mt] = row?.last_date || null;
   }

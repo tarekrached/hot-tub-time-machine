@@ -48,18 +48,22 @@ interface WizardState {
   appliedChemicals: Record<string, boolean>;
 }
 
-const initialState: WizardState = {
-  sessionId: null,
-  selectedTests: [],
-  currentTestIndex: 0,
-  step: "select",
-  readings: {},
-  recommendations: {},
-  phSkipped: false,
-  phSkippedReason: null,
-  bromineValue: null,
-  appliedChemicals: {},
-};
+function makeInitialState(suggestedTests: TestType[]): WizardState {
+  return {
+    sessionId: null,
+    selectedTests: suggestedTests
+      .slice()
+      .sort((a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b)),
+    currentTestIndex: 0,
+    step: "select",
+    readings: {},
+    recommendations: {},
+    phSkipped: false,
+    phSkippedReason: null,
+    bromineValue: null,
+    appliedChemicals: {},
+  };
+}
 
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env as { DB: D1Database };
@@ -120,16 +124,16 @@ export default function TestWizard() {
   const { suggestedTests } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [state, setState] = useState<WizardState>(() => {
-    if (typeof window === "undefined") return { ...initialState };
+    if (typeof window === "undefined") return makeInitialState(suggestedTests);
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         return JSON.parse(saved) as WizardState;
       } catch {
-        return { ...initialState };
+        return makeInitialState(suggestedTests);
       }
     }
-    return { ...initialState };
+    return makeInitialState(suggestedTests);
   });
   const [showResume, setShowResume] = useState(false);
   const [inputMode, setInputMode] = useState<"ppm" | "drops">("drops");
@@ -189,7 +193,7 @@ export default function TestWizard() {
 
   const clearWizard = () => {
     sessionStorage.removeItem(STORAGE_KEY);
-    setState({ ...initialState });
+    setState(makeInitialState(suggestedTests));
     setShowResume(false);
     setPhIndex(PH_DEFAULT_INDEX);
   };

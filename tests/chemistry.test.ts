@@ -102,8 +102,8 @@ describe("dosing constants", () => {
     expect(SODIUM_BROMIDE_OZ).toBe(1.65);
   });
 
-  it("baking soda is ~0.92 oz per 10 ppm for 330 gal", () => {
-    expect(BAKING_SODA_OZ_PER_10PPM).toBe(0.92);
+  it("baking soda is 0.75 oz per 10 ppm for 330 gal", () => {
+    expect(BAKING_SODA_OZ_PER_10PPM).toBe(0.75);
   });
 
   it("dry acid is ~0.46 oz per 0.2 pH for 330 gal", () => {
@@ -131,8 +131,8 @@ describe("getRecommendations", () => {
     const recs = getRecommendations("ta", 30);
     expect(recs).toHaveLength(1);
     expect(recs[0].chemical).toBe("Baking Soda");
-    // 20 ppm deficit = 2 units * 0.92 oz = 1.84 oz -> rounded to 1.8
-    expect(recs[0].amount).toContain("1.8 oz");
+    // 20 ppm deficit = 2 units * 0.75 oz * 2 tbsp/oz = 3 tbsp
+    expect(recs[0].amount).toContain("3 tbsp");
   });
 
   it("recommends aeration when TA is high", () => {
@@ -151,10 +151,12 @@ describe("getRecommendations", () => {
     expect(recs[0].chemical).toBe("Dry Acid (sodium bisulfate)");
   });
 
-  it("recommends aeration/borax when pH is low", () => {
+  it("recommends borax when pH is low", () => {
     const recs = getRecommendations("ph", 7.0);
     expect(recs).toHaveLength(1);
-    expect(recs[0].chemical).toBe("Aeration / Borax");
+    expect(recs[0].chemical).toBe("Borax");
+    // 0.6 pH deficit = 3 units * 1.0 oz * 2 tbsp/oz = 6 tbsp
+    expect(recs[0].amount).toContain("6 tbsp");
   });
 
   it("returns nothing when pH is in range", () => {

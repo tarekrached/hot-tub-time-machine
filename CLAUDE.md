@@ -131,7 +131,9 @@ migrations/
 tests/
 └── chemistry.test.ts           # Vitest unit tests
 docs/
-└── bromine-3-step-method.md    # Bromine 3-step method reference
+├── bromine-3-step-method.md    # Bromine 3-step method reference
+├── cheatsheet.pdf              # Original printed cheat sheet (printable)
+└── cheatsheet.png              # Original printed cheat sheet (image)
 ```
 
 **Legacy directories** (`backend/`, `frontend/`) contain the original Val Town app code that served as a specification for the Cloudflare rebuild. They are not used at runtime.

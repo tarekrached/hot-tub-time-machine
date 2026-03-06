@@ -31,7 +31,7 @@ npm run build     # Production build
 
 ## Chemistry
 
-Configured for a **330-gallon** hot tub using the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/) with **7.5% disinfecting bleach** and a **Taylor K-2106** drop-based test kit. See [`docs/bromine-3-step-method.md`](docs/bromine-3-step-method.md) for the full reference.
+Configured for a **330-gallon** hot tub using the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/) with **7.5% disinfecting bleach** and a **Taylor K-2106** drop-based test kit. See [`docs/bromine-3-step-method.md`](docs/bromine-3-step-method.md) for the full reference and [`docs/cheatsheet.pdf`](docs/cheatsheet.pdf) for the original printed cheat sheet this app replaced.
 
 | Test | Ideal Range | Cadence |
 |------|-------------|---------|

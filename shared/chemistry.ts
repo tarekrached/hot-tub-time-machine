@@ -72,15 +72,17 @@ export const BLEACH_SHOCK_OZ = 6.6;
 export const SODIUM_BROMIDE_OZ =
   Math.round(((0.5 * TUB_GALLONS) / 100) * 100) / 100; // 1.65 oz
 
-// Baking soda to raise TA by 10 ppm: ~1.4 oz per 500 gal
-// For 330 gal: ~0.92 oz per 10 ppm raise
-export const BAKING_SODA_OZ_PER_10PPM =
-  Math.round(((1.4 * TUB_GALLONS) / 500) * 100) / 100;
+// Baking soda to raise TA by 10 ppm: ~1.5 lbs per 10,000 gal (Swim University reference)
+// For 330 gal: 24 oz × (330/10,000) = 0.79 oz → rounded to 0.75 oz (= 1.5 tbsp per 10 ppm)
+export const BAKING_SODA_OZ_PER_10PPM = 0.75;
 
 // Dry acid to lower pH by 0.2: ~0.7 oz per 500 gal
 // For 330 gal: ~0.46 oz per 0.2 pH drop
 export const DRY_ACID_OZ_PER_02PH =
   Math.round(((0.7 * TUB_GALLONS) / 500) * 100) / 100;
+
+// Borax to raise pH by 0.2: ~1 oz per 330 gal (1 tbsp ≈ +0.1 pH)
+export const BORAX_OZ_PER_02PH = 1.0;
 
 // Calcium chloride to raise CH by 10 ppm: ~0.73 oz per 500 gal
 // For 330 gal: ~0.48 oz per 10 ppm raise
@@ -122,10 +124,10 @@ export function getRecommendations(
       if (currentValue < 50) {
         const deficit = 50 - currentValue;
         const units = deficit / 10;
-        const oz = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 10) / 10;
+        const tbsp = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 2 * 10) / 10;
         recs.push({
           chemical: "Baking Soda",
-          amount: `${oz} oz (${ozToTeaspoons(oz)} tsp)`,
+          amount: `${tbsp} tbsp (1 tbsp ≈ +6 ppm TA)`,
           reason: `TA is low (${currentValue} ppm). Raise to 50 ppm.`,
         });
       } else if (currentValue > 70) {
@@ -148,10 +150,13 @@ export function getRecommendations(
           reason: `pH is high (${formatPhValue(currentValue)}). Lower to ~7.6.`,
         });
       } else if (currentValue < 7.2) {
+        const deficit = 7.6 - currentValue;
+        const units = deficit / 0.2;
+        const tbsp = Math.round(units * BORAX_OZ_PER_02PH * 2 * 10) / 10;
         recs.push({
-          chemical: "Aeration / Borax",
-          amount: "Run jets with cover open, or add borax",
-          reason: `pH is low (${formatPhValue(currentValue)}). Aeration raises pH naturally.`,
+          chemical: "Borax",
+          amount: `${tbsp} tbsp (1 tbsp ≈ +0.1 pH)`,
+          reason: `pH is low (${formatPhValue(currentValue)}). Add borax, or aerate (run jets with cover open).`,
         });
       }
       break;

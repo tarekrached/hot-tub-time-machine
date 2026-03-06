@@ -63,6 +63,61 @@ export const TEST_LABELS: Record<TestType, string> = {
   calcium: "Calcium Hardness",
 };
 
+export const TEST_COLORS: Record<TestType, string> = {
+  ph: "#F472B6",      // pink   — cheat sheet pH header
+  bromine: "#FBBF24", // yellow — cheat sheet Bromine header
+  ta: "#2DD4BF",      // teal   — cheat sheet TA header
+  calcium: "#22D3EE", // cyan   — cheat sheet Calcium header
+};
+
+export const TEST_INSTRUCTIONS: Record<
+  TestType,
+  { procedure: string[]; guidance: string }
+> = {
+  ta: {
+    procedure: [
+      "Fill large tube to 25 ml mark",
+      "Add 2 drops R-0007 (sodium thiosulfate), swirl",
+      "Add 5 drops R-0008 (buffer), swirl",
+      "Add R-0009 one drop at a time, swirl after each",
+      "Count drops until color changes to red",
+      "Drops × 10 = ppm TA",
+    ],
+    guidance:
+      "Target 50–70 ppm. If low, add baking soda. If high, aerate (run jets with cover open).",
+  },
+  bromine: {
+    procedure: [
+      "Fill tube to 10 ml or 25 ml mark",
+      "Add 2 scoops R-0870 (DPD powder), swirl",
+      "Count drops R-0872 until clear",
+      "Drops × ppm/drop = bromine ppm (see sample size toggle)",
+    ],
+    guidance:
+      "Target 4–6 ppm. If low, shock with bleach. Above 10 ppm: remove floater, leave cover open until it drops.",
+  },
+  ph: {
+    procedure: [
+      "Fill small tube to 5 ml mark",
+      "Add 5 drops R-0004 (phenol red), swirl",
+      "Match color to comparator card",
+    ],
+    guidance:
+      "Target 7.4–7.8. If high (>7.8), add dry acid. If low (<7.2), run jets or add borax. Cannot test accurately above 10 ppm bromine.",
+  },
+  calcium: {
+    procedure: [
+      "Fill large tube to 25 ml mark",
+      "Add 20 drops R-0010L (calcium hardness buffer), swirl",
+      "Add 5 drops R-0011 (calcium indicator) — solution turns red",
+      "Add R-0012 (EDTA) one drop at a time, swirl after each",
+      "Count drops until color changes from red to blue",
+      "Drops × 10 = ppm calcium",
+    ],
+    guidance: "Target 130–150 ppm. If low, add calcium chloride.",
+  },
+};
+
 export const MAINTENANCE_LABELS: Record<MaintenanceType, string> = {
   filter_change: "Filter Change",
   water_change: "Water Change",

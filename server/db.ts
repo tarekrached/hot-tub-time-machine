@@ -268,6 +268,33 @@ export async function getDashboardData(
   };
 }
 
+// --- Recent Readings by Test Type ---
+
+export async function getRecentReadingsByTestType(
+  db: D1Database
+): Promise<Record<TestType, Array<{ ppm: number; created_at: string }>>> {
+  const testTypes: TestType[] = ["ph", "bromine", "ta", "calcium"];
+  const result = {} as Record<
+    TestType,
+    Array<{ ppm: number; created_at: string }>
+  >;
+  for (const tt of testTypes) {
+    const rows = await db
+      .prepare(
+        `SELECT value_ppm, created_at FROM test_readings
+         WHERE test_type = ? AND phase = 'before'
+         ORDER BY created_at DESC LIMIT 3`
+      )
+      .bind(tt)
+      .all<{ value_ppm: number; created_at: string }>();
+    result[tt] = rows.results.map((r) => ({
+      ppm: r.value_ppm,
+      created_at: r.created_at,
+    }));
+  }
+  return result;
+}
+
 // --- Sparkline Data ---
 
 export async function getSparklineData(

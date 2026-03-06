@@ -29,6 +29,13 @@ const STORAGE_KEY = "hottub_wizard_state";
 const PH_VALUES = [6.8, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.2];
 const PH_DEFAULT_INDEX = 6; // 7.5 — center of range
 
+function getMaxDrops(testType: TestType, sampleSize: number): number {
+  if (testType === "bromine") return sampleSize === 10 ? 16 : 20;
+  if (testType === "ta") return 20;
+  if (testType === "calcium") return 30;
+  return 20;
+}
+
 interface WizardState {
   sessionId: number | null;
   selectedTests: TestType[];
@@ -140,6 +147,7 @@ export default function TestWizard() {
   const [inputValue, setInputValue] = useState("");
   const [sampleSize, setSampleSize] = useState<number>(25);
   const [phIndex, setPhIndex] = useState(PH_DEFAULT_INDEX);
+  const [dropCount, setDropCount] = useState(0);
 
   // Check for resume on mount
   useEffect(() => {
@@ -228,7 +236,8 @@ export default function TestWizard() {
 
   const handleSubmitReading = (phase: "before" | "after") => {
     if (!currentTest || !state.sessionId) return;
-    if (currentTest !== "ph" && !inputValue) return;
+    if (currentTest !== "ph" && inputMode === "ppm" && !inputValue) return;
+    if (currentTest !== "ph" && inputMode === "drops" && dropCount === 0) return;
 
     let ppm: number;
     let rawDrops: number | null = null;
@@ -237,7 +246,7 @@ export default function TestWizard() {
     if (currentTest === "ph") {
       ppm = PH_VALUES[phIndex];
     } else if (inputMode === "drops" && canUseDrop) {
-      rawDrops = Number(inputValue);
+      rawDrops = dropCount;
       sampleSizeMl = currentTest === "bromine" ? sampleSize : 25;
       ppm = dropsToPpm(currentTest, rawDrops, sampleSizeMl);
     } else {
@@ -364,6 +373,7 @@ export default function TestWizard() {
     setInputValue("");
     setInputMode("drops");
     setPhIndex(PH_DEFAULT_INDEX);
+    setDropCount(0);
   };
 
   const handleOverridePh = () => {
@@ -379,26 +389,17 @@ export default function TestWizard() {
     clearWizard();
   };
 
-  // Compute conversion display
+  // Compute conversion display (PPM mode only; drops mode shows inline in slider)
   let conversionDisplay = "";
-  if (canUseDrop && inputValue) {
+  if (canUseDrop && inputMode === "ppm" && inputValue) {
     const val = Number(inputValue);
     if (!isNaN(val)) {
-      if (inputMode === "drops") {
-        const ppm = dropsToPpm(
-          currentTest!,
-          val,
-          currentTest === "bromine" ? sampleSize : 25
-        );
-        conversionDisplay = `= ${ppm} ${currentTest === "ph" ? "" : "ppm"}`;
-      } else {
-        const drops = ppmToDrops(
-          currentTest!,
-          val,
-          currentTest === "bromine" ? sampleSize : 25
-        );
-        conversionDisplay = `= ${drops} drops`;
-      }
+      const drops = ppmToDrops(
+        currentTest!,
+        val,
+        currentTest === "bromine" ? sampleSize : 25
+      );
+      conversionDisplay = `= ${drops} drops`;
     }
   }
 
@@ -605,6 +606,7 @@ export default function TestWizard() {
                   onClick={() => {
                     setInputMode("drops");
                     setInputValue("");
+                    setDropCount(0);
                   }}
                 >
                   Drops
@@ -620,37 +622,59 @@ export default function TestWizard() {
                 </button>
               </div>
             )}
-            {canUseDrop &&
-              inputMode === "drops" &&
-              currentTest === "bromine" && (
-                <div className={styles.sampleToggle}>
-                  <button
-                    className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
-                    onClick={() => setSampleSize(25)}
-                  >
-                    25 ml
-                  </button>
-                  <button
-                    className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
-                    onClick={() => setSampleSize(10)}
-                  >
-                    10 ml
-                  </button>
+            {canUseDrop && inputMode === "drops" && currentTest === "bromine" && (
+              <div className={styles.sampleToggle}>
+                <button
+                  className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
+                  onClick={() => setSampleSize(25)}
+                >
+                  25 ml
+                </button>
+                <button
+                  className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
+                  onClick={() => setSampleSize(10)}
+                >
+                  10 ml
+                </button>
+              </div>
+            )}
+            {inputMode === "drops" ? (
+              <div className={styles.dropSlider}>
+                <div className={styles.dropCount}>{dropCount}</div>
+                <input
+                  type="range"
+                  min={0}
+                  max={getMaxDrops(currentTest, sampleSize)}
+                  step={1}
+                  value={dropCount}
+                  onChange={(e) => setDropCount(Number(e.target.value))}
+                  className={styles.phRangeInput}
+                />
+                <div className={styles.dropEndLabels}>
+                  <span>0</span>
+                  <span>{getMaxDrops(currentTest, sampleSize)}</span>
                 </div>
-              )}
-            <input
-              type="number"
-              inputMode="decimal"
-              className={styles.input}
-              placeholder={
-                inputMode === "drops" && canUseDrop ? "Drop count" : "PPM value"
-              }
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              autoFocus
-            />
-            {conversionDisplay && (
-              <div className={styles.conversion}>{conversionDisplay}</div>
+                {dropCount > 0 && (
+                  <div className={styles.conversion}>
+                    = {dropsToPpm(currentTest, dropCount, currentTest === "bromine" ? sampleSize : 25)} ppm
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  className={styles.input}
+                  placeholder="PPM value"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  autoFocus
+                />
+                {conversionDisplay && (
+                  <div className={styles.conversion}>{conversionDisplay}</div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -658,7 +682,10 @@ export default function TestWizard() {
           <button
             className={styles.btnPrimary}
             onClick={() => handleSubmitReading("after")}
-            disabled={(currentTest !== "ph" && !inputValue) || fetcher.state !== "idle"}
+            disabled={
+              (currentTest !== "ph" && (inputMode === "ppm" ? !inputValue : dropCount === 0)) ||
+              fetcher.state !== "idle"
+            }
           >
             Submit
           </button>
@@ -763,6 +790,7 @@ export default function TestWizard() {
                 onClick={() => {
                   setInputMode("drops");
                   setInputValue("");
+                  setDropCount(0);
                 }}
               >
                 Drops
@@ -794,19 +822,43 @@ export default function TestWizard() {
               </button>
             </div>
           )}
-          <input
-            type="number"
-            inputMode="decimal"
-            className={styles.input}
-            placeholder={
-              inputMode === "drops" && canUseDrop ? "Drop count" : "PPM value"
-            }
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            autoFocus
-          />
-          {conversionDisplay && (
-            <div className={styles.conversion}>{conversionDisplay}</div>
+          {inputMode === "drops" ? (
+            <div className={styles.dropSlider}>
+              <div className={styles.dropCount}>{dropCount}</div>
+              <input
+                type="range"
+                min={0}
+                max={getMaxDrops(currentTest, sampleSize)}
+                step={1}
+                value={dropCount}
+                onChange={(e) => setDropCount(Number(e.target.value))}
+                className={styles.phRangeInput}
+              />
+              <div className={styles.dropEndLabels}>
+                <span>0</span>
+                <span>{getMaxDrops(currentTest, sampleSize)}</span>
+              </div>
+              {dropCount > 0 && (
+                <div className={styles.conversion}>
+                  = {dropsToPpm(currentTest, dropCount, currentTest === "bromine" ? sampleSize : 25)} ppm
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <input
+                type="number"
+                inputMode="decimal"
+                className={styles.input}
+                placeholder="PPM value"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                autoFocus
+              />
+              {conversionDisplay && (
+                <div className={styles.conversion}>{conversionDisplay}</div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -814,7 +866,10 @@ export default function TestWizard() {
         <button
           className={styles.btnPrimary}
           onClick={() => handleSubmitReading("before")}
-          disabled={(currentTest !== "ph" && !inputValue) || fetcher.state !== "idle"}
+          disabled={
+            (currentTest !== "ph" && (inputMode === "ppm" ? !inputValue : dropCount === 0)) ||
+            fetcher.state !== "idle"
+          }
         >
           Submit
         </button>

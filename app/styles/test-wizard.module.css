@@ -293,6 +293,33 @@
   color: var(--color-text-secondary);
 }
 
+/* Drop Count Slider */
+.dropSlider {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  padding: 8px 0;
+}
+
+.dropCount {
+  font-size: 56px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+  padding: 8px 0;
+  color: var(--color-text);
+}
+
+.dropEndLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
 /* pH Skip */
 .phSkip {
   display: flex;

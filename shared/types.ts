@@ -76,45 +76,45 @@ export const TEST_INSTRUCTIONS: Record<
 > = {
   ta: {
     procedure: [
-      "Fill large tube to 25 ml mark",
-      "Add 2 drops R-0007 (sodium thiosulfate), swirl",
-      "Add 5 drops R-0008 (buffer), swirl",
-      "Add R-0009 one drop at a time, swirl after each",
-      "Count drops until color changes to red",
-      "Drops × 10 = ppm TA",
+      "Fill large tube to 25 ml (middle) mark",
+      "Add 2 💧 R-0007, swirl",
+      "Add 5 💧 R-0008, swirl",
+      "Add R-0009 one 💧 at a time, swirl after each",
+      "Count 💧 until color changes to red",
+      "💧 × 10 = ppm TA",
     ],
     guidance:
-      "Target 50–70 ppm. If low, add baking soda. If high, aerate (run jets with cover open).",
+      "Target 50–70 ppm.\nIf low, add baking soda.\nIf high, aerate (run jets with cover open).",
   },
   bromine: {
     procedure: [
-      "Fill tube to 10 ml or 25 ml mark",
-      "Add 2 scoops R-0870 (DPD powder), swirl",
-      "Count drops R-0872 until clear",
-      "Drops × ppm/drop = bromine ppm (see sample size toggle)",
+      "Fill large tube to 10 ml (lowest) or 25 ml (middle) mark",
+      "Add 2 scoops R-0870, swirl",
+      "Count 💧 R-0872 until clear",
+      "💧 × ppm/💧 = bromine ppm (see sample size toggle)",
     ],
     guidance:
-      "Target 4–6 ppm. If low, shock with bleach. Above 10 ppm: remove floater, leave cover open until it drops.",
+      "Target 4–6 ppm.\nIf low, shock with bleach.\nAbove 10 ppm: remove floater, leave cover open until it drops.",
   },
   ph: {
     procedure: [
-      "Fill small tube to 5 ml mark",
-      "Add 5 drops R-0004 (phenol red), swirl",
+      "Fill large tube to 44 ml (top) mark",
+      "Add 5 💧 R-0004, swirl",
       "Match color to comparator card",
     ],
     guidance:
-      "Target 7.4–7.8. If high (>7.8), add dry acid. If low (<7.2), run jets or add borax. Cannot test accurately above 10 ppm bromine.",
+      "Target 7.4–7.8.\nIf high (>7.8), add dry acid.\nIf low (<7.2), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
   },
   calcium: {
     procedure: [
-      "Fill large tube to 25 ml mark",
-      "Add 20 drops R-0010L (calcium hardness buffer), swirl",
-      "Add 5 drops R-0011 (calcium indicator) — solution turns red",
-      "Add R-0012 (EDTA) one drop at a time, swirl after each",
-      "Count drops until color changes from red to blue",
-      "Drops × 10 = ppm calcium",
+      "Fill large tube to 25 ml (middle) mark",
+      "Add 20 💧 R-0010L, swirl",
+      "Add 5 💧 R-0011 — solution turns red",
+      "Add R-0012 one 💧 at a time, swirl after each",
+      "Count 💧 until color changes from red to blue",
+      "💧 × 10 = ppm calcium",
     ],
-    guidance: "Target 130–150 ppm. If low, add calcium chloride.",
+    guidance: "Target 130–150 ppm.\nIf low, add calcium chloride.",
   },
 };
 

@@ -30,6 +30,40 @@ const STORAGE_KEY = "hottub_wizard_state";
 const PH_VALUES = [6.8, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.2];
 const PH_DEFAULT_INDEX = 6; // 7.5 — center of range
 
+const STEP_COLOR_MAP: Record<string, string> = {
+  red: "#dc2626",
+  blue: "#2563eb",
+  clear: "#94a3b8",
+};
+
+function renderStep(text: string) {
+  const pattern =
+    /(R-\d+[A-Z]?\b|×\s*\d+|\d+\s*(?:ml|💧|scoops?)|\bred\b|\bblue\b|\bclear\b)/gi;
+  const parts = text.split(pattern);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const lower = part.toLowerCase();
+        if (STEP_COLOR_MAP[lower]) {
+          return (
+            <strong key={i} style={{ color: STEP_COLOR_MAP[lower] }}>
+              {part}
+            </strong>
+          );
+        }
+        if (
+          /^R-\d+[A-Z]?$/i.test(part) ||
+          /^×\s*\d+$/.test(part) ||
+          /^\d+\s*(?:ml|💧|scoops?)$/.test(part)
+        ) {
+          return <strong key={i}>{part}</strong>;
+        }
+        return part;
+      })}
+    </>
+  );
+}
+
 function daysAgo(dateStr: string): string {
   const days = Math.floor(
     (Date.now() - new Date(dateStr + "Z").getTime()) / (1000 * 60 * 60 * 24)
@@ -716,6 +750,15 @@ export default function TestWizard() {
   if (state.step === "recommendation") {
     const recs = state.recommendations[currentTest] || [];
     const isInRange = recs.length === 0;
+    const recRange = TEST_RANGES[currentTest];
+    const beforePpm = state.readings[currentTest]?.before?.ppm;
+    const currentDisplay =
+      beforePpm !== undefined
+        ? currentTest === "ph"
+          ? formatPhValue(beforePpm)
+          : `${beforePpm} ${recRange.unit}`
+        : null;
+    const targetDisplay = `${recRange.idealMin}–${recRange.idealMax}${recRange.unit ? ` ${recRange.unit}` : ""}`;
 
     return (
       <div className={styles.wizard}>
@@ -727,15 +770,22 @@ export default function TestWizard() {
             <span>In range!</span>
           </div>
         ) : (
-          <div className={styles.recList}>
-            {recs.map((rec, i) => (
-              <div key={i} className={styles.recCard}>
-                <div className={styles.recChemical}>{rec.chemical}</div>
-                <div className={styles.recAmount}>{rec.amount}</div>
-                <div className={styles.recReason}>{rec.reason}</div>
+          <>
+            {currentDisplay && (
+              <div className={styles.recContext}>
+                {currentDisplay} · target {targetDisplay}
               </div>
-            ))}
-          </div>
+            )}
+            <div className={styles.recList}>
+              {recs.map((rec, i) => (
+                <div key={i} className={styles.recCard}>
+                  <div className={styles.recChemical}>{rec.chemical}</div>
+                  <div className={styles.recAmount}>{rec.amount}</div>
+                  <div className={styles.recReason}>{rec.reason}</div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         <div className={styles.btnRow}>
           {isInRange ? (
@@ -776,9 +826,11 @@ export default function TestWizard() {
         onClick={() => setInfoExpanded((prev) => !prev)}
       >
         <span className={styles.infoPanelTitle}>
-          {TEST_LABELS[currentTest]} · Target:{" "}
-          {range.idealMin}–{range.idealMax}
-          {range.unit ? ` ${range.unit}` : ""}
+          <span className={styles.infoPanelName}>{TEST_LABELS[currentTest]}</span>
+          <span className={styles.infoPanelTarget}>
+            🎯 {range.idealMin}–{range.idealMax}
+            {range.unit ? ` ${range.unit}` : ""}
+          </span>
         </span>
         <span className={styles.infoPanelChevron}>
           {infoExpanded ? "▲" : "▼"}
@@ -790,7 +842,7 @@ export default function TestWizard() {
             <div className={styles.infoSectionLabel}>How to test</div>
             <ol className={styles.infoProcedureList}>
               {instructions.procedure.map((step, i) => (
-                <li key={i}>{step}</li>
+                <li key={i}>{renderStep(step)}</li>
               ))}
             </ol>
           </div>

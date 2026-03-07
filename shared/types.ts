@@ -63,6 +63,61 @@ export const TEST_LABELS: Record<TestType, string> = {
   calcium: "Calcium Hardness",
 };
 
+export const TEST_COLORS: Record<TestType, string> = {
+  ph: "#F472B6",      // pink   — cheat sheet pH header
+  bromine: "#FBBF24", // yellow — cheat sheet Bromine header
+  ta: "#2DD4BF",      // teal   — cheat sheet TA header
+  calcium: "#22D3EE", // cyan   — cheat sheet Calcium header
+};
+
+export const TEST_INSTRUCTIONS: Record<
+  TestType,
+  { procedure: string[]; guidance: string }
+> = {
+  ta: {
+    procedure: [
+      "Fill large tube to 25 ml (middle) mark",
+      "Add 2 💧 R-0007, swirl",
+      "Add 5 💧 R-0008, swirl",
+      "Add R-0009 one 💧 at a time, swirl after each",
+      "Count 💧 until color changes to red",
+      "💧 × 10 = ppm TA",
+    ],
+    guidance:
+      "Target 50–70 ppm.\nIf low, add baking soda.\nIf high, aerate (run jets with cover open).",
+  },
+  bromine: {
+    procedure: [
+      "Fill large tube to 10 ml (lowest) or 25 ml (middle) mark",
+      "Add 2 scoops R-0870, swirl",
+      "Count 💧 R-0872 until clear",
+      "💧 × ppm/💧 = bromine ppm (see sample size toggle)",
+    ],
+    guidance:
+      "Target 4–6 ppm.\nIf low, shock with bleach.\nAbove 10 ppm: remove floater, leave cover open until it drops.",
+  },
+  ph: {
+    procedure: [
+      "Fill large tube to 44 ml (top) mark",
+      "Add 5 💧 R-0004, swirl",
+      "Match color to comparator card",
+    ],
+    guidance:
+      "Target 7.4–7.8.\nIf high (>7.8), add dry acid.\nIf low (<7.2), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
+  },
+  calcium: {
+    procedure: [
+      "Fill large tube to 25 ml (middle) mark",
+      "Add 20 💧 R-0010L, swirl",
+      "Add 5 💧 R-0011 — solution turns red",
+      "Add R-0012 one 💧 at a time, swirl after each",
+      "Count 💧 until color changes from red to blue",
+      "💧 × 10 = ppm calcium",
+    ],
+    guidance: "Target 130–150 ppm.\nIf low, add calcium chloride.",
+  },
+};
+
 export const MAINTENANCE_LABELS: Record<MaintenanceType, string> = {
   filter_change: "Filter Change",
   water_change: "Water Change",

@@ -5,7 +5,8 @@
       "name": "dev",
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "[ -d node_modules ] || npm install && npm run dev"],
-      "port": 5173
+      "port": 5173,
+      "host": "localhost"
     }
   ]
 }

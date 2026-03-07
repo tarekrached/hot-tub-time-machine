@@ -11,7 +11,7 @@ import {
   TEST_ORDER,
   formatPhValue,
 } from "shared/chemistry";
-import { TEST_LABELS, TEST_RANGES } from "shared/types";
+import { TEST_LABELS, TEST_RANGES, TEST_COLORS, TEST_INSTRUCTIONS } from "shared/types";
 import type { TestType } from "shared/types";
 import { StepDots } from "~/components/StepDots";
 import { Timer } from "~/components/Timer";
@@ -20,6 +20,7 @@ import {
   addReading,
   addChemicalAddition,
   completeSession,
+  getRecentReadingsByTestType,
 } from "server/db";
 import styles from "~/styles/test-wizard.module.css";
 
@@ -28,6 +29,49 @@ const STORAGE_KEY = "hottub_wizard_state";
 // pH slider: 13 discrete stops covering <7.0 through >8.0
 const PH_VALUES = [6.8, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.2];
 const PH_DEFAULT_INDEX = 6; // 7.5 — center of range
+
+const STEP_COLOR_MAP: Record<string, string> = {
+  red: "#dc2626",
+  blue: "#2563eb",
+  clear: "#94a3b8",
+};
+
+function renderStep(text: string) {
+  const pattern =
+    /(R-\d+[A-Z]?\b|×\s*\d+|\d+\s*(?:ml|💧|scoops?)|\bred\b|\bblue\b|\bclear\b)/gi;
+  const parts = text.split(pattern);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const lower = part.toLowerCase();
+        if (STEP_COLOR_MAP[lower]) {
+          return (
+            <strong key={i} style={{ color: STEP_COLOR_MAP[lower] }}>
+              {part}
+            </strong>
+          );
+        }
+        if (
+          /^R-\d+[A-Z]?$/i.test(part) ||
+          /^×\s*\d+$/.test(part) ||
+          /^\d+\s*(?:ml|💧|scoops?)$/.test(part)
+        ) {
+          return <strong key={i}>{part}</strong>;
+        }
+        return part;
+      })}
+    </>
+  );
+}
+
+function daysAgo(dateStr: string): string {
+  const days = Math.floor(
+    (Date.now() - new Date(dateStr + "Z").getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (days === 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
 
 function getMaxDrops(testType: TestType, sampleSize: number): number {
   if (testType === "bromine") return sampleSize === 10 ? 16 : 20;
@@ -74,8 +118,11 @@ function makeInitialState(suggestedTests: TestType[]): WizardState {
 
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env as { DB: D1Database };
-  const dashboard = await getDashboardData(env.DB);
-  return { suggestedTests: dashboard.suggestedTests };
+  const [dashboard, recentReadings] = await Promise.all([
+    getDashboardData(env.DB),
+    getRecentReadingsByTestType(env.DB),
+  ]);
+  return { suggestedTests: dashboard.suggestedTests, recentReadings };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -128,7 +175,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export default function TestWizard() {
-  const { suggestedTests } = useLoaderData<typeof loader>();
+  const { suggestedTests, recentReadings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [state, setState] = useState<WizardState>(() => {
     if (typeof window === "undefined") return makeInitialState(suggestedTests);
@@ -148,6 +195,7 @@ export default function TestWizard() {
   const [sampleSize, setSampleSize] = useState<number>(25);
   const [phIndex, setPhIndex] = useState(PH_DEFAULT_INDEX);
   const [dropCount, setDropCount] = useState(0);
+  const [infoExpanded, setInfoExpanded] = useState(true);
 
   // Check for resume on mount
   useEffect(() => {
@@ -374,6 +422,7 @@ export default function TestWizard() {
     setInputMode("drops");
     setPhIndex(PH_DEFAULT_INDEX);
     setDropCount(0);
+    setInfoExpanded(true);
   };
 
   const handleOverridePh = () => {
@@ -701,6 +750,15 @@ export default function TestWizard() {
   if (state.step === "recommendation") {
     const recs = state.recommendations[currentTest] || [];
     const isInRange = recs.length === 0;
+    const recRange = TEST_RANGES[currentTest];
+    const beforePpm = state.readings[currentTest]?.before?.ppm;
+    const currentDisplay =
+      beforePpm !== undefined
+        ? currentTest === "ph"
+          ? formatPhValue(beforePpm)
+          : `${beforePpm} ${recRange.unit}`
+        : null;
+    const targetDisplay = `${recRange.idealMin}–${recRange.idealMax}${recRange.unit ? ` ${recRange.unit}` : ""}`;
 
     return (
       <div className={styles.wizard}>
@@ -712,15 +770,22 @@ export default function TestWizard() {
             <span>In range!</span>
           </div>
         ) : (
-          <div className={styles.recList}>
-            {recs.map((rec, i) => (
-              <div key={i} className={styles.recCard}>
-                <div className={styles.recChemical}>{rec.chemical}</div>
-                <div className={styles.recAmount}>{rec.amount}</div>
-                <div className={styles.recReason}>{rec.reason}</div>
+          <>
+            {currentDisplay && (
+              <div className={styles.recContext}>
+                {currentDisplay} · target {targetDisplay}
               </div>
-            ))}
-          </div>
+            )}
+            <div className={styles.recList}>
+              {recs.map((rec, i) => (
+                <div key={i} className={styles.recCard}>
+                  <div className={styles.recChemical}>{rec.chemical}</div>
+                  <div className={styles.recAmount}>{rec.amount}</div>
+                  <div className={styles.recReason}>{rec.reason}</div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         <div className={styles.btnRow}>
           {isInRange ? (
@@ -748,6 +813,61 @@ export default function TestWizard() {
     );
   }
 
+  // Info panel (shared between input step renders)
+  const range = TEST_RANGES[currentTest];
+  const instructions = TEST_INSTRUCTIONS[currentTest];
+  const testColor = TEST_COLORS[currentTest];
+  const testRecent = recentReadings[currentTest] ?? [];
+  const infoPanel = (
+    <div className={styles.infoPanel}>
+      <button
+        className={styles.infoPanelHeader}
+        style={{ backgroundColor: testColor }}
+        onClick={() => setInfoExpanded((prev) => !prev)}
+      >
+        <span className={styles.infoPanelTitle}>
+          <span className={styles.infoPanelName}>{TEST_LABELS[currentTest]}</span>
+          <span className={styles.infoPanelTarget}>
+            🎯 {range.idealMin}–{range.idealMax}
+            {range.unit ? ` ${range.unit}` : ""}
+          </span>
+        </span>
+        <span className={styles.infoPanelChevron}>
+          {infoExpanded ? "▲" : "▼"}
+        </span>
+      </button>
+      {infoExpanded && (
+        <div className={styles.infoPanelBody}>
+          <div>
+            <div className={styles.infoSectionLabel}>How to test</div>
+            <ol className={styles.infoProcedureList}>
+              {instructions.procedure.map((step, i) => (
+                <li key={i}>{renderStep(step)}</li>
+              ))}
+            </ol>
+          </div>
+          <div className={styles.infoGuidance}>{instructions.guidance}</div>
+          {testRecent.length > 0 && (
+            <div>
+              <div className={styles.infoSectionLabel}>Recent</div>
+              {testRecent.map((r, i) => (
+                <div key={i} className={styles.infoRecentRow}>
+                  <span className={styles.infoRecentPpm}>
+                    {currentTest === "ph" ? formatPhValue(r.ppm) : r.ppm}
+                    {range.unit ? ` ${range.unit}` : ""}
+                  </span>
+                  <span className={styles.infoRecentDate}>
+                    {daysAgo(r.created_at)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   // Input step
   const phPpm = PH_VALUES[phIndex];
   const phZone =
@@ -760,7 +880,7 @@ export default function TestWizard() {
   return (
     <div className={styles.wizard}>
       <StepDots total={totalSteps} current={currentStepNum} />
-      <h2 className={styles.heading}>{TEST_LABELS[currentTest]}</h2>
+      {infoPanel}
       {currentTest === "ph" ? (
         <div className={styles.phSlider}>
           <div className={`${styles.phValue} ${phZone}`}>

@@ -268,6 +268,27 @@ export async function getDashboardData(
   };
 }
 
+// --- Last Reading Values ---
+
+export async function getLastReadingValues(
+  db: D1Database
+): Promise<Record<TestType, number | null>> {
+  const testTypes: TestType[] = ["ph", "bromine", "ta", "calcium"];
+  const result = {} as Record<TestType, number | null>;
+  for (const tt of testTypes) {
+    const row = await db
+      .prepare(
+        `SELECT value_ppm FROM test_readings
+         WHERE test_type = ?
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .bind(tt)
+      .first<{ value_ppm: number }>();
+    result[tt] = row?.value_ppm ?? null;
+  }
+  return result;
+}
+
 // --- Recent Readings by Test Type ---
 
 export async function getRecentReadingsByTestType(

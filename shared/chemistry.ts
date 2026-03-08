@@ -202,16 +202,17 @@ export function formatPhValue(ppm: number): string {
 
 export function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
+  // SQLite stores UTC without timezone suffix; append "Z" to parse as UTC
+  const d = new Date(dateStr.replace(" ", "T") + "Z");
   const now = new Date();
-  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 export function timeSinceLabel(dateStr: string | null): string {
   if (!dateStr) return "Never";
   const days = daysSince(dateStr);
   if (days === null) return "Never";
-  if (days === 0) return "Today";
+  if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
   if (days < 30) {

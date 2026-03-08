@@ -53,3 +53,15 @@
   font-size: 14px;
   line-height: 1.5;
 }
+
+.rangeNote {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.sourceLink {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding-bottom: 8px;
+}

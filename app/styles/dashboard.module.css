@@ -59,6 +59,27 @@
   white-space: nowrap;
 }
 
+.cardValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.cardValueGood {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-green);
+  line-height: 1;
+}
+
+.cardValueBad {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-red);
+  line-height: 1;
+}
+
 .cardTime {
   font-size: 13px;
   color: var(--color-text-secondary);

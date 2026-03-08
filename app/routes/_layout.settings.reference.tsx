@@ -12,11 +12,50 @@ import {
   TEST_CADENCE_DAYS,
   MAINTENANCE_CADENCE_DAYS,
 } from "shared/chemistry";
+import { TEST_RANGES } from "shared/types";
 import styles from "~/styles/reference.module.css";
 
 export default function ReferencePage() {
   return (
     <div className={styles.reference}>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Target Ranges</h3>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Ideal</th>
+              <th>Max</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>pH</td>
+              <td>7.4–7.8</td>
+              <td>8.0</td>
+            </tr>
+            <tr>
+              <td>Bromine</td>
+              <td>{TEST_RANGES.bromine.idealMin}–{TEST_RANGES.bromine.idealMax} ppm</td>
+              <td>{TEST_RANGES.bromine.max} ppm</td>
+            </tr>
+            <tr>
+              <td>Total Alkalinity</td>
+              <td>{TEST_RANGES.ta.idealMin}–{TEST_RANGES.ta.idealMax} ppm</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Calcium Hardness</td>
+              <td>{TEST_RANGES.calcium.idealMin}–{TEST_RANGES.calcium.idealMax} ppm</td>
+              <td>{TEST_RANGES.calcium.max} ppm</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className={styles.rangeNote}>
+          Bromine above {TEST_RANGES.bromine.max} ppm: remove floater, aerate until it drops before using or testing pH.
+        </p>
+      </section>
+
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Dosing Amounts (330 gal)</h3>
         <table className={styles.table}>
@@ -144,6 +183,17 @@ export default function ReferencePage() {
           </li>
         </ol>
       </section>
+
+      <p className={styles.sourceLink}>
+        Source:{" "}
+        <a
+          href="https://github.com/tarekrached/hot-tub-time-machine/blob/main/docs/bromine-3-step-method.md"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Bromine 3-step method
+        </a>
+      </p>
     </div>
   );
 }

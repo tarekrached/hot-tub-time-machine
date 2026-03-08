@@ -832,6 +832,7 @@ export default function TestWizard() {
           <span className={styles.infoPanelTarget}>
             🎯 {range.idealMin}–{range.idealMax}
             {range.unit ? ` ${range.unit}` : ""}
+            {currentTest === "bromine" ? ` · max ${range.max} ppm` : ""}
           </span>
         </span>
         <span className={styles.infoPanelChevron}>

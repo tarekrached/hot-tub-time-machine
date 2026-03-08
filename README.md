@@ -1,6 +1,6 @@
 # Hot Tub Time Machine
 
-A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D1 database. Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from your phone while standing at the hot tub.
+A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D1 database, at https://hot-tub-time-machine.tarek-rached.workers.dev/ . Track water chemistry test sessions, log chemical additions, and get dosing recommendations — all from your phone while standing at the hot tub.
 
 ## Features
 

@@ -134,8 +134,8 @@
 .infoGuidance {
   font-size: 13px;
   color: var(--color-text-secondary);
-  line-height: 1.5;
-  padding: 10px 12px;
+  line-height: 1.4;
+  padding: 6px 10px;
   background: var(--color-bg);
   border-radius: 6px;
   border: 1px solid var(--color-border);
@@ -170,6 +170,15 @@
   flex-direction: column;
   gap: 10px;
   align-items: center;
+}
+
+/* Row that holds mode toggle + sample toggle side by side */
+.inputControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .modeToggle,

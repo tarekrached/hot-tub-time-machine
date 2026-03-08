@@ -649,42 +649,44 @@ export default function TestWizard() {
         ) : (
           <div className={styles.inputGroup}>
             {canUseDrop && (
-              <div className={styles.modeToggle}>
-                <button
-                  className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
-                  onClick={() => {
-                    setInputMode("drops");
-                    setInputValue("");
-                    setDropCount(0);
-                  }}
-                >
-                  Drops
-                </button>
-                <button
-                  className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
-                  onClick={() => {
-                    setInputMode("ppm");
-                    setInputValue("");
-                  }}
-                >
-                  PPM
-                </button>
-              </div>
-            )}
-            {canUseDrop && inputMode === "drops" && currentTest === "bromine" && (
-              <div className={styles.sampleToggle}>
-                <button
-                  className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
-                  onClick={() => setSampleSize(25)}
-                >
-                  25 ml
-                </button>
-                <button
-                  className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
-                  onClick={() => setSampleSize(10)}
-                >
-                  10 ml
-                </button>
+              <div className={styles.inputControls}>
+                <div className={styles.modeToggle}>
+                  <button
+                    className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
+                    onClick={() => {
+                      setInputMode("drops");
+                      setInputValue("");
+                      setDropCount(0);
+                    }}
+                  >
+                    Drops
+                  </button>
+                  <button
+                    className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
+                    onClick={() => {
+                      setInputMode("ppm");
+                      setInputValue("");
+                    }}
+                  >
+                    PPM
+                  </button>
+                </div>
+                {inputMode === "drops" && currentTest === "bromine" && (
+                  <div className={styles.sampleToggle}>
+                    <button
+                      className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
+                      onClick={() => setSampleSize(25)}
+                    >
+                      25 ml
+                    </button>
+                    <button
+                      className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
+                      onClick={() => setSampleSize(10)}
+                    >
+                      10 ml
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {inputMode === "drops" ? (
@@ -838,31 +840,23 @@ export default function TestWizard() {
       </button>
       {infoExpanded && (
         <div className={styles.infoPanelBody}>
-          <div>
-            <div className={styles.infoSectionLabel}>How to test</div>
-            <ol className={styles.infoProcedureList}>
-              {instructions.procedure.map((step, i) => (
-                <li key={i}>{renderStep(step)}</li>
-              ))}
-            </ol>
-          </div>
+          <ol className={styles.infoProcedureList}>
+            {instructions.procedure.map((step, i) => (
+              <li key={i}>{renderStep(step)}</li>
+            ))}
+          </ol>
           <div className={styles.infoGuidance}>{instructions.guidance}</div>
-          {testRecent.length > 0 && (
-            <div>
-              <div className={styles.infoSectionLabel}>Recent</div>
-              {testRecent.map((r, i) => (
-                <div key={i} className={styles.infoRecentRow}>
-                  <span className={styles.infoRecentPpm}>
-                    {currentTest === "ph" ? formatPhValue(r.ppm) : r.ppm}
-                    {range.unit ? ` ${range.unit}` : ""}
-                  </span>
-                  <span className={styles.infoRecentDate}>
-                    {daysAgo(r.created_at)}
-                  </span>
-                </div>
-              ))}
+          {testRecent.map((r, i) => (
+            <div key={i} className={styles.infoRecentRow}>
+              <span className={styles.infoRecentPpm}>
+                {currentTest === "ph" ? formatPhValue(r.ppm) : r.ppm}
+                {range.unit ? ` ${range.unit}` : ""}
+              </span>
+              <span className={styles.infoRecentDate}>
+                {daysAgo(r.created_at)}
+              </span>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>
@@ -904,42 +898,44 @@ export default function TestWizard() {
       ) : (
         <div className={styles.inputGroup}>
           {canUseDrop && (
-            <div className={styles.modeToggle}>
-              <button
-                className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
-                onClick={() => {
-                  setInputMode("drops");
-                  setInputValue("");
-                  setDropCount(0);
-                }}
-              >
-                Drops
-              </button>
-              <button
-                className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
-                onClick={() => {
-                  setInputMode("ppm");
-                  setInputValue("");
-                }}
-              >
-                PPM
-              </button>
-            </div>
-          )}
-          {canUseDrop && inputMode === "drops" && currentTest === "bromine" && (
-            <div className={styles.sampleToggle}>
-              <button
-                className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
-                onClick={() => setSampleSize(25)}
-              >
-                25 ml
-              </button>
-              <button
-                className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
-                onClick={() => setSampleSize(10)}
-              >
-                10 ml
-              </button>
+            <div className={styles.inputControls}>
+              <div className={styles.modeToggle}>
+                <button
+                  className={`${styles.modeBtn} ${inputMode === "drops" ? styles.modeActive : ""}`}
+                  onClick={() => {
+                    setInputMode("drops");
+                    setInputValue("");
+                    setDropCount(0);
+                  }}
+                >
+                  Drops
+                </button>
+                <button
+                  className={`${styles.modeBtn} ${inputMode === "ppm" ? styles.modeActive : ""}`}
+                  onClick={() => {
+                    setInputMode("ppm");
+                    setInputValue("");
+                  }}
+                >
+                  PPM
+                </button>
+              </div>
+              {inputMode === "drops" && currentTest === "bromine" && (
+                <div className={styles.sampleToggle}>
+                  <button
+                    className={`${styles.sampleBtn} ${sampleSize === 25 ? styles.sampleActive : ""}`}
+                    onClick={() => setSampleSize(25)}
+                  >
+                    25 ml
+                  </button>
+                  <button
+                    className={`${styles.sampleBtn} ${sampleSize === 10 ? styles.sampleActive : ""}`}
+                    onClick={() => setSampleSize(10)}
+                  >
+                    10 ml
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {inputMode === "drops" ? (

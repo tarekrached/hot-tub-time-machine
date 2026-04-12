@@ -1,11 +1,15 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useNavigation } from "react-router";
 import styles from "~/styles/layout.module.css";
 import { ToastProvider } from "~/components/ToastProvider";
 
 export default function AppLayout() {
+  const navigation = useNavigation();
+  const isLoading = navigation.state === "loading";
+
   return (
     <ToastProvider>
       <div className={styles.app}>
+        {isLoading && <div className={styles.loadingBar} />}
         <main className={styles.content}>
           <Outlet />
         </main>

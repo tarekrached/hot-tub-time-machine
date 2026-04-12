@@ -149,7 +149,7 @@ export function getRecommendations(
           amount: `${oz} oz (${ozToTeaspoons(oz)} tsp)`,
           reason: `pH is high (${formatPhValue(currentValue)}). Lower to ~7.6.`,
         });
-      } else if (currentValue < 7.2) {
+      } else if (currentValue < 7.4) {
         const deficit = 7.6 - currentValue;
         const units = deficit / 0.2;
         const tbsp = Math.round(units * BORAX_OZ_PER_02PH * 2 * 10) / 10;

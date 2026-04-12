@@ -36,6 +36,29 @@ const STEP_COLOR_MAP: Record<string, string> = {
   clear: "#94a3b8",
 };
 
+// "bromine_fix" is a virtual step: bromine reading was already taken before pH,
+// and now we apply any fixes and retest after pH is complete.
+type WizardStep = TestType | "bromine_fix";
+
+function effectiveTest(step: WizardStep): TestType {
+  return step === "bromine_fix" ? "bromine" : step;
+}
+
+// Build the ordered step list from selected tests, inserting bromine_fix
+// after pH when both bromine and pH are selected.
+function buildSelectedTests(tests: TestType[]): WizardStep[] {
+  const sorted = tests
+    .slice()
+    .sort((a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b));
+  if (sorted.includes("bromine") && sorted.includes("ph")) {
+    const phIdx = sorted.indexOf("ph");
+    const result: WizardStep[] = [...sorted];
+    result.splice(phIdx + 1, 0, "bromine_fix");
+    return result;
+  }
+  return sorted;
+}
+
 function renderStep(text: string) {
   const pattern =
     /(R-\d+[A-Z]?\b|×\s*\d+|\d+\s*(?:ml|💧|scoops?)|\bred\b|\bblue\b|\bclear\b)/gi;
@@ -82,7 +105,7 @@ function getMaxDrops(testType: TestType, sampleSize: number): number {
 
 interface WizardState {
   sessionId: number | null;
-  selectedTests: TestType[];
+  selectedTests: WizardStep[];
   currentTestIndex: number;
   step: "select" | "input" | "recommendation" | "timer" | "retest" | "summary";
   readings: Record<
@@ -102,9 +125,7 @@ interface WizardState {
 function makeInitialState(suggestedTests: TestType[]): WizardState {
   return {
     sessionId: null,
-    selectedTests: suggestedTests
-      .slice()
-      .sort((a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b)),
+    selectedTests: buildSelectedTests(suggestedTests),
     currentTestIndex: 0,
     step: "select",
     readings: {},
@@ -236,9 +257,10 @@ export default function TestWizard() {
     setState((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  const currentTest = state.selectedTests[state.currentTestIndex] as
-    | TestType
+  const currentStep = state.selectedTests[state.currentTestIndex] as
+    | WizardStep
     | undefined;
+  const currentTest = currentStep ? effectiveTest(currentStep) : undefined;
   const totalSteps = state.selectedTests.length + 1; // +1 for summary
   const currentStepNum =
     state.step === "summary"
@@ -265,12 +287,13 @@ export default function TestWizard() {
   // --- Test Selection ---
   const handleToggleTest = (tt: TestType) => {
     setState((prev) => {
-      const selected = prev.selectedTests.includes(tt)
-        ? prev.selectedTests.filter((t) => t !== tt)
-        : [...prev.selectedTests, tt].sort(
-            (a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b)
-          );
-      return { ...prev, selectedTests: selected };
+      // Work with the base TestType list (exclude virtual steps)
+      const currentBase = prev.selectedTests
+        .filter((s): s is TestType => s !== "bromine_fix");
+      const newBase = currentBase.includes(tt)
+        ? currentBase.filter((t) => t !== tt)
+        : [...currentBase, tt];
+      return { ...prev, selectedTests: buildSelectedTests(newBase) };
     });
   };
 
@@ -320,6 +343,9 @@ export default function TestWizard() {
       sampleSize: sampleSizeMl ?? undefined,
     };
 
+    // Use effectiveTest as the readings key (bromine_fix stores under "bromine")
+    const readingKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
+
     if (phase === "before") {
       // Track bromine value for pH enforcement
       if (currentTest === "bromine") {
@@ -327,21 +353,62 @@ export default function TestWizard() {
       }
 
       const recs = getRecommendations(currentTest, ppm);
-      setState((prev) => ({
-        ...prev,
-        readings: {
-          ...prev.readings,
-          [currentTest]: { ...prev.readings[currentTest], before: readingData },
-        },
-        recommendations: { ...prev.recommendations, [currentTest]: recs },
-        step: "recommendation",
-      }));
+
+      // When bromine_fix is in the list, the bromine "before" step skips straight
+      // to the next test — the recommendation is deferred until bromine_fix.
+      const hasBromineFix = state.selectedTests.includes("bromine_fix");
+      const deferBromineRec = currentStep === "bromine" && hasBromineFix;
+
+      setState((prev) => {
+        const next: WizardState = {
+          ...prev,
+          readings: {
+            ...prev.readings,
+            [readingKey]: { ...prev.readings[readingKey], before: readingData },
+          },
+          recommendations: { ...prev.recommendations, [readingKey]: recs },
+        };
+        if (deferBromineRec) {
+          return next; // advanceToNextTest() called below
+        }
+        return { ...next, step: "recommendation" };
+      });
+
+      if (deferBromineRec) {
+        // Advance after the state update settles via the callback form
+        setState((prev) => {
+          const nextIdx = prev.currentTestIndex + 1;
+          if (nextIdx >= prev.selectedTests.length) {
+            return { ...prev, step: "summary" };
+          }
+          const nextStepVal = prev.selectedTests[nextIdx];
+          const goToStep = nextStepVal === "bromine_fix" ? "recommendation" : "input";
+          const nextIsPhWithHighBromine =
+            nextStepVal === "ph" &&
+            prev.bromineValue !== null &&
+            prev.bromineValue > 10;
+          return {
+            ...prev,
+            currentTestIndex: nextIdx,
+            step: goToStep,
+            phSkipped: nextIsPhWithHighBromine,
+            phSkippedReason: nextIsPhWithHighBromine
+              ? "pH skipped: bromine is above 10 ppm (Taylor kit limit). Re-test pH when bromine drops below 10."
+              : null,
+          };
+        });
+        setInputValue("");
+        setInputMode("drops");
+        setPhIndex(PH_DEFAULT_INDEX);
+        setDropCount(0);
+        setInfoExpanded(true);
+      }
     } else {
       setState((prev) => ({
         ...prev,
         readings: {
           ...prev.readings,
-          [currentTest]: { ...prev.readings[currentTest], after: readingData },
+          [readingKey]: { ...prev.readings[readingKey], after: readingData },
         },
       }));
       advanceToNextTest();
@@ -352,7 +419,8 @@ export default function TestWizard() {
 
   const handleApplyAndTimer = () => {
     if (!currentTest || !state.sessionId) return;
-    const recs = state.recommendations[currentTest];
+    const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
+    const recs = state.recommendations[recKey];
     if (recs && recs.length > 0) {
       // Record the first recommendation's addition
       const rec = recs[0];
@@ -371,7 +439,7 @@ export default function TestWizard() {
       }
     }
     update({
-      appliedChemicals: { ...state.appliedChemicals, [currentTest!]: true },
+      appliedChemicals: { ...state.appliedChemicals, [recKey]: true },
       step: "timer",
     });
   };
@@ -393,10 +461,12 @@ export default function TestWizard() {
     if (nextIdx >= state.selectedTests.length) {
       update({ step: "summary" });
     } else {
+      const nextStepVal = state.selectedTests[nextIdx];
+      // bromine_fix starts at recommendation (reading already taken)
+      const goToStep = nextStepVal === "bromine_fix" ? "recommendation" : "input";
       // Check pH enforcement
-      const nextTest = state.selectedTests[nextIdx];
       if (
-        nextTest === "ph" &&
+        nextStepVal === "ph" &&
         state.bromineValue !== null &&
         state.bromineValue > 10
       ) {
@@ -412,7 +482,7 @@ export default function TestWizard() {
         setState((prev) => ({
           ...prev,
           currentTestIndex: nextIdx,
-          step: "input",
+          step: goToStep,
           phSkipped: false,
           phSkippedReason: null,
         }));
@@ -477,12 +547,16 @@ export default function TestWizard() {
 
   // --- Test Selection ---
   if (state.step === "select") {
+    // For the selection UI, show only real TestTypes (not virtual bromine_fix)
+    const selectedBase = state.selectedTests.filter(
+      (s): s is TestType => s !== "bromine_fix"
+    );
     return (
       <div className={styles.wizard}>
         <h2 className={styles.heading}>Select Tests</h2>
         <div className={styles.testList}>
           {TEST_ORDER.map((tt) => {
-            const isSelected = state.selectedTests.includes(tt);
+            const isSelected = selectedBase.includes(tt);
             const isSuggested = suggestedTests.includes(tt);
             return (
               <label
@@ -506,7 +580,7 @@ export default function TestWizard() {
         <button
           className={styles.btnPrimary}
           onClick={handleStartSession}
-          disabled={state.selectedTests.length === 0 || fetcher.state !== "idle"}
+          disabled={selectedBase.length === 0 || fetcher.state !== "idle"}
         >
           {fetcher.state !== "idle" ? "Starting..." : "Start"}
         </button>
@@ -516,12 +590,16 @@ export default function TestWizard() {
 
   // --- Summary ---
   if (state.step === "summary") {
+    // Filter out virtual bromine_fix — bromine row covers both before and after
+    const displayTests = state.selectedTests.filter(
+      (s): s is TestType => s !== "bromine_fix"
+    );
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={totalSteps - 1} />
         <h2 className={styles.heading}>Summary</h2>
         <div className={styles.summaryList}>
-          {state.selectedTests.map((tt) => {
+          {displayTests.map((tt) => {
             const reading = state.readings[tt];
             const range = TEST_RANGES[tt];
             const before = reading?.before;
@@ -582,7 +660,7 @@ export default function TestWizard() {
   if (!currentTest) return null;
 
   // pH enforcement (auto-skip)
-  if (state.phSkipped && currentTest === "ph") {
+  if (state.phSkipped && currentStep === "ph") {
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={currentStepNum} />
@@ -750,10 +828,11 @@ export default function TestWizard() {
 
   // Recommendation step
   if (state.step === "recommendation") {
-    const recs = state.recommendations[currentTest] || [];
+    const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
+    const recs = state.recommendations[recKey] || [];
     const isInRange = recs.length === 0;
     const recRange = TEST_RANGES[currentTest];
-    const beforePpm = state.readings[currentTest]?.before?.ppm;
+    const beforePpm = state.readings[recKey]?.before?.ppm;
     const currentDisplay =
       beforePpm !== undefined
         ? currentTest === "ph"

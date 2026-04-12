@@ -103,7 +103,7 @@ export const TEST_INSTRUCTIONS: Record<
       "Match color to comparator card",
     ],
     guidance:
-      "Target 7.4–7.8.\nIf high (>7.8), add dry acid.\nIf low (<7.2), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
+      "Target 7.4–7.8.\nIf high (>7.8), add dry acid.\nIf low (<7.4), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
   },
   calcium: {
     procedure: [

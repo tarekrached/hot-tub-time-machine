@@ -57,7 +57,7 @@ npx wrangler d1 execute hot-tub-time-machine --remote --file=seeds/historical.sq
 - `npm run dev` for local development, `npm run build` for production build
 - Chemistry constants are calibrated for a 330-gallon tub using Taylor K-2106 test kit and 7.5% disinfecting bleach
 - All dosing functions live in `shared/chemistry.ts` and are shared between frontend and backend
-- Test order: TA → Bromine → pH → Calcium (bromine before pH to enforce pH skip when bromine > 10 ppm)
+- Test order: TA → Bromine → pH → Calcium. When both bromine and pH are selected, the wizard uses a split flow: bromine reading is taken first (no fix yet), pH is fully tested and fixed, then bromine fix/retest runs. This prevents bleach added for low bromine from skewing the pH reading.
 - The app is designed to be used on a phone while standing at the hot tub
 
 ## Chemistry Reference
@@ -66,7 +66,7 @@ The chemistry and maintenance schedule is based on the [bromine 3-step method](h
 
 Key design decisions from the source:
 - **Titrating tests**: The app supports entering raw drop counts instead of PPM values. The bromine test has two sample size options (10ml vs 25ml) with different PPM-per-drop ratios. pH is not a titrating test — it uses a swipe slider with 13 discrete stops from `<7.0` to `>8.0` (out-of-range sentinels stored as 6.8 and 8.2; `formatPhValue()` in `shared/chemistry.ts` converts these back to display strings).
-- **Test order matters**: TA should be adjusted before pH. pH cannot be accurately tested when sanitizer is above 10 ppm (Taylor kit limit).
+- **Test order matters**: TA should be adjusted before pH. pH cannot be accurately tested when sanitizer is above 10 ppm (Taylor kit limit). When bromine and pH are both selected, the wizard splits the bromine test: reading first, then pH fully fixed, then bromine fix — so bleach added for low bromine doesn't skew the pH reading.
 - **Shock dosing**: Uses bleach to oxidize the bromide bank. No additional sodium bromide is needed for weekly shock — only on drain/refill.
 - **Maintenance cadence**: The app tracks time since last test and proposes appropriate tests on open. Weekly: pH & bromine. Every 2–4 weeks: TA & calcium. Every 3–4 months: drain, refill, rebalance, re-add sodium bromide.
 

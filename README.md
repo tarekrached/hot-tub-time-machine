@@ -4,7 +4,7 @@ A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D
 
 ## Features
 
-- **Test Wizard** — Per-test sequential flow (TA → Bromine → pH → Calcium) with session recovery, 15-minute retest timers, and dosing recommendations
+- **Test Wizard** — Per-test sequential flow (TA → Bromine → pH → Calcium) with session recovery, 15-minute retest timers, and dosing recommendations. When bromine and pH are both selected, bromine is read first, pH is fully fixed, then bromine is fixed — preventing bleach from skewing the pH reading.
 - **Drop-to-PPM Conversion** — Automatic conversion for Taylor K-2106 titration tests (supports 10ml and 25ml sample sizes); pH uses a swipe slider with out-of-range `<7.0` / `>8.0` support
 - **Dosing Recommendations** — Calculates chemical amounts based on current readings for a 330-gallon tub
 - **Dashboard** — Status cards with urgency coloring (green/yellow/red), sparkline trends, and overdue test badges

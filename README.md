@@ -40,6 +40,10 @@ Configured for a **330-gallon** hot tub using the [bromine 3-step method](https:
 | Total Alkalinity | 50 – 70 ppm | Every 3 weeks |
 | Calcium Hardness | 130 – 150 ppm | Every 3 weeks |
 
+## Ideas
+
+- **Show it in Home Assistant** (2026-10-01): HA reads the latest readings, "last tested" and due/overdue state from a small read-only JSON endpoint on the worker (REST sensors), so the test reminder can live in HA instead of an OmniFocus repeater. The app stays the place where tests are logged. Migrating the logging into HA was considered and set aside: it would mean rebuilding the test wizard and dosing math.
+
 ## Deployment
 
 The app deploys to Cloudflare Workers automatically on push to `main` via GitHub Actions.

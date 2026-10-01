@@ -9,7 +9,7 @@ import type {
   SessionDetail,
   TimelineEntry,
 } from "shared/types";
-import { TEST_CADENCE_DAYS } from "shared/chemistry";
+import { getTestCadenceStatus } from "shared/chemistry";
 
 type D1Database = {
   prepare(query: string): D1PreparedStatement;
@@ -226,17 +226,10 @@ export async function getDashboardData(
   }
 
   const suggestedTests: TestType[] = [];
-  const now = Date.now();
   for (const tt of testTypes) {
-    const last = lastTests[tt];
-    if (!last) {
+    const status = getTestCadenceStatus(tt, lastTests[tt]);
+    if (status === "due" || status === "overdue" || status === "never") {
       suggestedTests.push(tt);
-    } else {
-      const daysSince =
-        (now - new Date(last + "Z").getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince >= TEST_CADENCE_DAYS[tt]) {
-        suggestedTests.push(tt);
-      }
     }
   }
 

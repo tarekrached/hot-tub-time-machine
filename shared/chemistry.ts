@@ -200,12 +200,26 @@ export function formatPhValue(ppm: number): string {
   return (Math.round(ppm * 10) / 10).toString();
 }
 
-export function daysSince(dateStr: string | null): number | null {
+export function daysSince(dateStr: string | null, now = new Date()): number | null {
   if (!dateStr) return null;
   // SQLite stores UTC without timezone suffix; append "Z" to parse as UTC
   const d = new Date(dateStr.replace(" ", "T") + "Z");
-  const now = new Date();
   return Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+export type TestCadenceStatus = "current" | "due" | "overdue" | "never";
+
+export function getTestCadenceStatus(
+  testType: TestType,
+  lastTestedAt: string | null,
+  now = new Date()
+): TestCadenceStatus {
+  const elapsedDays = daysSince(lastTestedAt, now);
+  if (elapsedDays === null) return "never";
+  const cadenceDays = TEST_CADENCE_DAYS[testType];
+  if (elapsedDays > cadenceDays) return "overdue";
+  if (elapsedDays === cadenceDays) return "due";
+  return "current";
 }
 
 export function timeSinceLabel(dateStr: string | null): string {

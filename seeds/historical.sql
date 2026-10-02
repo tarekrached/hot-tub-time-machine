@@ -1,268 +1,295 @@
--- seeds/historical.sql
--- Historical backfill: 32 test sessions (2025-06-25 through 2026-02-15)
--- 2 maintenance events: drain_refill 2025-11-08, filter_change 2026-02-01
--- NOTE: chemical_additions are NOT included (oz amounts not recorded in source log)
---
--- Apply locally:   npx wrangler d1 execute hot-tub-time-machine --local --file=seeds/historical.sql
--- Apply remotely:  npx wrangler d1 execute hot-tub-time-machine --remote --file=seeds/historical.sql
---
--- Safe to re-run (INSERT OR IGNORE on explicit IDs).
--- Run AFTER: npx wrangler d1 migrations apply hot-tub-time-machine --local
---
--- Ongoing backup: regenerate from production and commit periodically:
---   npx wrangler d1 export hot-tub-time-machine --remote --no-schema --output=seeds/historical.sql
---   git add seeds/historical.sql && git commit -m "chore: update DB seed"
-
--- ============================================================
--- SESSIONS (32 total)
--- ============================================================
-INSERT OR IGNORE INTO test_sessions (id, started_at, completed_at, notes) VALUES
-  (1,  '2025-06-25 10:00:00', '2025-06-25 10:30:00', NULL),
-  (2,  '2025-06-30 10:00:00', '2025-06-30 10:30:00', NULL),
-  (3,  '2025-07-04 10:00:00', '2025-07-04 10:30:00', NULL),
-  (4,  '2025-07-12 10:00:00', '2025-07-12 10:30:00', NULL),
-  (5,  '2025-07-21 10:00:00', '2025-07-21 10:30:00', NULL),
-  (6,  '2025-07-22 10:00:00', '2025-07-22 10:30:00', NULL),
-  (7,  '2025-08-04 10:00:00', '2025-08-04 10:30:00', NULL),
-  (8,  '2025-08-11 10:00:00', '2025-08-11 10:30:00', NULL),
-  (9,  '2025-08-16 10:00:00', '2025-08-16 10:30:00', NULL),
-  (10, '2025-08-23 10:00:00', '2025-08-23 10:30:00', NULL),
-  (11, '2025-08-24 10:00:00', '2025-08-24 10:30:00', NULL),
-  (12, '2025-09-03 10:00:00', '2025-09-03 10:30:00', NULL),
-  (13, '2025-09-09 10:00:00', '2025-09-09 10:30:00', NULL),
-  (14, '2025-09-15 10:00:00', '2025-09-15 10:30:00', NULL),
-  (15, '2025-09-23 10:00:00', '2025-09-23 10:30:00', NULL),
-  (16, '2025-10-04 10:00:00', '2025-10-04 10:30:00', NULL),
-  (17, '2025-10-10 10:00:00', '2025-10-10 10:30:00', NULL),
-  (18, '2025-10-18 10:00:00', '2025-10-18 10:30:00', NULL),
-  (19, '2025-11-03 10:00:00', '2025-11-03 10:30:00', NULL),
-  (20, '2025-11-08 10:00:00', '2025-11-08 10:30:00', 'Post drain/refill rebalance'),
-  (21, '2025-11-16 10:00:00', '2025-11-16 10:30:00', NULL),
-  (22, '2025-11-26 10:00:00', '2025-11-26 10:30:00', NULL),
-  (23, '2025-12-03 10:00:00', '2025-12-03 10:30:00', NULL),
-  (24, '2025-12-10 10:00:00', '2025-12-10 10:30:00', NULL),
-  (25, '2025-12-14 10:00:00', '2025-12-14 10:30:00', NULL),
-  (26, '2025-12-31 10:00:00', '2025-12-31 10:30:00', NULL),
-  (27, '2026-01-07 10:00:00', '2026-01-07 10:30:00', NULL),
-  (28, '2026-01-13 10:00:00', '2026-01-13 10:30:00', NULL),
-  (29, '2026-01-22 10:00:00', '2026-01-22 10:30:00', NULL),
-  (30, '2026-02-01 10:00:00', '2026-02-01 10:30:00', NULL),
-  (31, '2026-02-08 10:00:00', '2026-02-08 10:30:00', NULL),
-  (32, '2026-02-15 10:00:00', '2026-02-15 10:30:00', NULL);
-
--- ============================================================
--- MAINTENANCE EVENTS
--- ============================================================
--- drain_refill timestamped at 09:00 (before the 10:00 test session on the same day — correct order)
--- filter_change on 2026-02-01 confirmed by user (not in the markdown log, added separately)
-INSERT OR IGNORE INTO maintenance_events (id, event_type, created_at, notes) VALUES
-  (1, 'drain_refill',  '2025-11-08 09:00:00', NULL),
-  (2, 'filter_change', '2026-02-01 09:00:00', NULL);
-
--- ============================================================
--- TEST READINGS (111 total)
--- Insertion order: TA → Bromine → pH → Calcium (app test order)
--- "✓" end = skip after reading. "—" = skip entirely.
--- pH sentinels: <7.x stored as 6.8, >8.0 stored as 8.2
--- raw_drops and sample_size_ml are NULL (historical PPM-only data)
--- ============================================================
-INSERT OR IGNORE INTO test_readings
-  (id, session_id, test_type, phase, value_ppm, raw_drops, sample_size_ml, created_at)
-VALUES
-  -- Session 1: 2025-06-25 | pH 7.1→7.7 | bromine 1.25→6.25
-  (1,  1,  'bromine', 'before', 1.25, NULL, NULL, '2025-06-25 10:01:00'),
-  (2,  1,  'bromine', 'after',  6.25, NULL, NULL, '2025-06-25 10:02:00'),
-  (3,  1,  'ph',      'before', 7.1,  NULL, NULL, '2025-06-25 10:03:00'),
-  (4,  1,  'ph',      'after',  7.7,  NULL, NULL, '2025-06-25 10:04:00'),
-
-  -- Session 2: 2025-06-30 | pH 7.0→7.7
-  (5,  2,  'ph',      'before', 7.0,  NULL, NULL, '2025-06-30 10:01:00'),
-  (6,  2,  'ph',      'after',  7.7,  NULL, NULL, '2025-06-30 10:02:00'),
-
-  -- Session 3: 2025-07-04 | pH 7.3→7.6 | bromine 3.75→7.5 | TA 10→60 | calcium 130→✓
-  (7,  3,  'ta',      'before', 10,   NULL, NULL, '2025-07-04 10:01:00'),
-  (8,  3,  'ta',      'after',  60,   NULL, NULL, '2025-07-04 10:02:00'),
-  (9,  3,  'bromine', 'before', 3.75, NULL, NULL, '2025-07-04 10:03:00'),
-  (10, 3,  'bromine', 'after',  7.5,  NULL, NULL, '2025-07-04 10:04:00'),
-  (11, 3,  'ph',      'before', 7.3,  NULL, NULL, '2025-07-04 10:05:00'),
-  (12, 3,  'ph',      'after',  7.6,  NULL, NULL, '2025-07-04 10:06:00'),
-  (13, 3,  'calcium', 'before', 130,  NULL, NULL, '2025-07-04 10:07:00'),
-  -- calcium after=✓ → skipped
-
-  -- Session 4: 2025-07-12 | pH 7.5→—
-  (14, 4,  'ph',      'before', 7.5,  NULL, NULL, '2025-07-12 10:01:00'),
-
-  -- Session 5: 2025-07-21 | pH 7.2→7.7 | bromine 1.25→7.5 | calcium 120→140
-  (15, 5,  'bromine', 'before', 1.25, NULL, NULL, '2025-07-21 10:01:00'),
-  (16, 5,  'bromine', 'after',  7.5,  NULL, NULL, '2025-07-21 10:02:00'),
-  (17, 5,  'ph',      'before', 7.2,  NULL, NULL, '2025-07-21 10:03:00'),
-  (18, 5,  'ph',      'after',  7.7,  NULL, NULL, '2025-07-21 10:04:00'),
-  (19, 5,  'calcium', 'before', 120,  NULL, NULL, '2025-07-21 10:05:00'),
-  (20, 5,  'calcium', 'after',  140,  NULL, NULL, '2025-07-21 10:06:00'),
-
-  -- Session 6: 2025-07-22 | pH 7.2→—
-  (21, 6,  'ph',      'before', 7.2,  NULL, NULL, '2025-07-22 10:01:00'),
-
-  -- Session 7: 2025-08-04 | pH 7.6→✓ | bromine 0.5→8.5 | TA 20→60 | calcium 150→✓
-  (22, 7,  'ta',      'before', 20,   NULL, NULL, '2025-08-04 10:01:00'),
-  (23, 7,  'ta',      'after',  60,   NULL, NULL, '2025-08-04 10:02:00'),
-  (24, 7,  'bromine', 'before', 0.5,  NULL, NULL, '2025-08-04 10:03:00'),
-  (25, 7,  'bromine', 'after',  8.5,  NULL, NULL, '2025-08-04 10:04:00'),
-  (26, 7,  'ph',      'before', 7.6,  NULL, NULL, '2025-08-04 10:05:00'),
-  -- ph after=✓ → skipped
-  (27, 7,  'calcium', 'before', 150,  NULL, NULL, '2025-08-04 10:06:00'),
-  -- calcium after=✓ → skipped
-
-  -- Session 8: 2025-08-11 | pH 7.6→✓ | bromine 10→✓ | TA 60→✓ | calcium 160→✓
-  (28, 8,  'ta',      'before', 60,   NULL, NULL, '2025-08-11 10:01:00'),
-  (29, 8,  'bromine', 'before', 10,   NULL, NULL, '2025-08-11 10:02:00'),
-  (30, 8,  'ph',      'before', 7.6,  NULL, NULL, '2025-08-11 10:03:00'),
-  (31, 8,  'calcium', 'before', 160,  NULL, NULL, '2025-08-11 10:04:00'),
-
-  -- Session 9: 2025-08-16 | pH 7.4→✓ | bromine 5→✓ | TA 50→✓ | calcium 150→✓
-  (32, 9,  'ta',      'before', 50,   NULL, NULL, '2025-08-16 10:01:00'),
-  (33, 9,  'bromine', 'before', 5,    NULL, NULL, '2025-08-16 10:02:00'),
-  (34, 9,  'ph',      'before', 7.4,  NULL, NULL, '2025-08-16 10:03:00'),
-  (35, 9,  'calcium', 'before', 150,  NULL, NULL, '2025-08-16 10:04:00'),
-
-  -- Session 10: 2025-08-23 | pH 7.7→✓ | bromine 13→11
-  (36, 10, 'bromine', 'before', 13,   NULL, NULL, '2025-08-23 10:01:00'),
-  (37, 10, 'bromine', 'after',  11,   NULL, NULL, '2025-08-23 10:02:00'),
-  (38, 10, 'ph',      'before', 7.7,  NULL, NULL, '2025-08-23 10:03:00'),
-  -- ph after=✓ → skipped
-
-  -- Session 11: 2025-08-24 | pH 7.4→7.6 | bromine 5.5→✓
-  (39, 11, 'bromine', 'before', 5.5,  NULL, NULL, '2025-08-24 10:01:00'),
-  -- bromine after=✓ → skipped
-  (40, 11, 'ph',      'before', 7.4,  NULL, NULL, '2025-08-24 10:02:00'),
-  (41, 11, 'ph',      'after',  7.6,  NULL, NULL, '2025-08-24 10:03:00'),
-
-  -- Session 12: 2025-09-03 | pH 7.0→7.5 | bromine 0.5→6.5 | TA 40→70 | calcium 160→✓
-  (42, 12, 'ta',      'before', 40,   NULL, NULL, '2025-09-03 10:01:00'),
-  (43, 12, 'ta',      'after',  70,   NULL, NULL, '2025-09-03 10:02:00'),
-  (44, 12, 'bromine', 'before', 0.5,  NULL, NULL, '2025-09-03 10:03:00'),
-  (45, 12, 'bromine', 'after',  6.5,  NULL, NULL, '2025-09-03 10:04:00'),
-  (46, 12, 'ph',      'before', 7.0,  NULL, NULL, '2025-09-03 10:05:00'),
-  (47, 12, 'ph',      'after',  7.5,  NULL, NULL, '2025-09-03 10:06:00'),
-  (48, 12, 'calcium', 'before', 160,  NULL, NULL, '2025-09-03 10:07:00'),
-  -- calcium after=✓ → skipped
-
-  -- Session 13: 2025-09-09 | pH 7.7→✓ | bromine 2.5→—
-  (49, 13, 'bromine', 'before', 2.5,  NULL, NULL, '2025-09-09 10:01:00'),
-  (50, 13, 'ph',      'before', 7.7,  NULL, NULL, '2025-09-09 10:02:00'),
-  -- bromine after=— and ph after=✓ → both skipped
-
-  -- Session 14: 2025-09-15 | pH 7.5→✓
-  (51, 14, 'ph',      'before', 7.5,  NULL, NULL, '2025-09-15 10:01:00'),
-  -- ph after=✓ → skipped
-
-  -- Session 15: 2025-09-23 | pH <7→7.4 (sentinel 6.8)
-  (52, 15, 'ph',      'before', 6.8,  NULL, NULL, '2025-09-23 10:01:00'),
-  (53, 15, 'ph',      'after',  7.4,  NULL, NULL, '2025-09-23 10:02:00'),
-
-  -- Session 16: 2025-10-04 | pH >8→7.7 (sentinel 8.2) | bromine 16→6.25 | TA 20→60 | calcium 140→✓
-  (54, 16, 'ta',      'before', 20,   NULL, NULL, '2025-10-04 10:01:00'),
-  (55, 16, 'ta',      'after',  60,   NULL, NULL, '2025-10-04 10:02:00'),
-  (56, 16, 'bromine', 'before', 16,   NULL, NULL, '2025-10-04 10:03:00'),
-  (57, 16, 'bromine', 'after',  6.25, NULL, NULL, '2025-10-04 10:04:00'),
-  (58, 16, 'ph',      'before', 8.2,  NULL, NULL, '2025-10-04 10:05:00'),
-  (59, 16, 'ph',      'after',  7.7,  NULL, NULL, '2025-10-04 10:06:00'),
-  (60, 16, 'calcium', 'before', 140,  NULL, NULL, '2025-10-04 10:07:00'),
-  -- calcium after=✓ → skipped
-
-  -- Session 17: 2025-10-10 | pH 7.1→7.6 | bromine 4.5→—
-  (61, 17, 'bromine', 'before', 4.5,  NULL, NULL, '2025-10-10 10:01:00'),
-  (62, 17, 'ph',      'before', 7.1,  NULL, NULL, '2025-10-10 10:02:00'),
-  (63, 17, 'ph',      'after',  7.6,  NULL, NULL, '2025-10-10 10:03:00'),
-
-  -- Session 18: 2025-10-18 | pH 7.4→7.6 | bromine 2→8.5
-  (64, 18, 'bromine', 'before', 2,    NULL, NULL, '2025-10-18 10:01:00'),
-  (65, 18, 'bromine', 'after',  8.5,  NULL, NULL, '2025-10-18 10:02:00'),
-  (66, 18, 'ph',      'before', 7.4,  NULL, NULL, '2025-10-18 10:03:00'),
-  (67, 18, 'ph',      'after',  7.6,  NULL, NULL, '2025-10-18 10:04:00'),
-
-  -- Session 19: 2025-11-03 | pH <7→7.4 (6.8) | bromine 12.5→12
-  (68, 19, 'bromine', 'before', 12.5, NULL, NULL, '2025-11-03 10:01:00'),
-  (69, 19, 'bromine', 'after',  12,   NULL, NULL, '2025-11-03 10:02:00'),
-  (70, 19, 'ph',      'before', 6.8,  NULL, NULL, '2025-11-03 10:03:00'),
-  (71, 19, 'ph',      'after',  7.4,  NULL, NULL, '2025-11-03 10:04:00'),
-
-  -- Session 20: 2025-11-08 (post drain/refill) | pH 7.8→7.5 | bromine —→5.5 | TA 30→60 | calcium —→140
-  (72, 20, 'ta',      'before', 30,   NULL, NULL, '2025-11-08 10:01:00'),
-  (73, 20, 'ta',      'after',  60,   NULL, NULL, '2025-11-08 10:02:00'),
-  (74, 20, 'bromine', 'after',  5.5,  NULL, NULL, '2025-11-08 10:03:00'),
-  -- bromine before=— (fresh water after drain/refill, no before reading)
-  (75, 20, 'ph',      'before', 7.8,  NULL, NULL, '2025-11-08 10:04:00'),
-  (76, 20, 'ph',      'after',  7.5,  NULL, NULL, '2025-11-08 10:05:00'),
-  (77, 20, 'calcium', 'after',  140,  NULL, NULL, '2025-11-08 10:06:00'),
-  -- calcium before=— (fresh water after drain/refill, no before reading)
-
-  -- Session 21: 2025-11-16 | pH >8→7.4 (8.2) | bromine 9.5→✓
-  (78, 21, 'bromine', 'before', 9.5,  NULL, NULL, '2025-11-16 10:01:00'),
-  -- bromine after=✓ → skipped
-  (79, 21, 'ph',      'before', 8.2,  NULL, NULL, '2025-11-16 10:02:00'),
-  (80, 21, 'ph',      'after',  7.4,  NULL, NULL, '2025-11-16 10:03:00'),
-
-  -- Session 22: 2025-11-26 | pH 7.5→— | bromine 8.5→✓
-  (81, 22, 'bromine', 'before', 8.5,  NULL, NULL, '2025-11-26 10:01:00'),
-  -- bromine after=✓ → skipped
-  (82, 22, 'ph',      'before', 7.5,  NULL, NULL, '2025-11-26 10:02:00'),
-  -- ph after=— → skipped
-
-  -- Session 23: 2025-12-03 | pH <7.0→7.5 (6.8)
-  (83, 23, 'ph',      'before', 6.8,  NULL, NULL, '2025-12-03 10:01:00'),
-  (84, 23, 'ph',      'after',  7.5,  NULL, NULL, '2025-12-03 10:02:00'),
-
-  -- Session 24: 2025-12-10 | pH 7.1→7.5 | bromine 9.5→✓
-  (85, 24, 'bromine', 'before', 9.5,  NULL, NULL, '2025-12-10 10:01:00'),
-  -- bromine after=✓ → skipped
-  (86, 24, 'ph',      'before', 7.1,  NULL, NULL, '2025-12-10 10:02:00'),
-  (87, 24, 'ph',      'after',  7.5,  NULL, NULL, '2025-12-10 10:03:00'),
-
-  -- Session 25: 2025-12-14 | pH <7→7.6 (6.8) | bromine 7→✓ | TA 30→60
-  (88, 25, 'ta',      'before', 30,   NULL, NULL, '2025-12-14 10:01:00'),
-  (89, 25, 'ta',      'after',  60,   NULL, NULL, '2025-12-14 10:02:00'),
-  (90, 25, 'bromine', 'before', 7,    NULL, NULL, '2025-12-14 10:03:00'),
-  -- bromine after=✓ → skipped
-  (91, 25, 'ph',      'before', 6.8,  NULL, NULL, '2025-12-14 10:04:00'),
-  (92, 25, 'ph',      'after',  7.6,  NULL, NULL, '2025-12-14 10:05:00'),
-
-  -- Session 26: 2025-12-31 | pH 7.5→—
-  (93, 26, 'ph',      'before', 7.5,  NULL, NULL, '2025-12-31 10:01:00'),
-
-  -- Session 27: 2026-01-07 | pH 7.3→7.7 | bromine 5.5→—
-  (94, 27, 'bromine', 'before', 5.5,  NULL, NULL, '2026-01-07 10:01:00'),
-  -- bromine after=— → skipped
-  (95, 27, 'ph',      'before', 7.3,  NULL, NULL, '2026-01-07 10:02:00'),
-  (96, 27, 'ph',      'after',  7.7,  NULL, NULL, '2026-01-07 10:03:00'),
-
-  -- Session 28: 2026-01-13 | pH 8.0→— | bromine 12.5→—
-  -- Note: 8.0 is a valid slider stop (not the >8.0 sentinel 8.2)
-  (97, 28, 'bromine', 'before', 12.5, NULL, NULL, '2026-01-13 10:01:00'),
-  (98, 28, 'ph',      'before', 8.0,  NULL, NULL, '2026-01-13 10:02:00'),
-  -- both afters=— → skipped
-
-  -- Session 29: 2026-01-22 | pH <7→7.7 (6.8) | bromine 12.5→—
-  (99,  29, 'bromine', 'before', 12.5, NULL, NULL, '2026-01-22 10:01:00'),
-  -- bromine after=— → skipped
-  (100, 29, 'ph',      'before', 6.8,  NULL, NULL, '2026-01-22 10:02:00'),
-  (101, 29, 'ph',      'after',  7.7,  NULL, NULL, '2026-01-22 10:03:00'),
-
-  -- Session 30: 2026-02-01 | pH <7→7.4 (6.8)
-  (102, 30, 'ph',      'before', 6.8,  NULL, NULL, '2026-02-01 10:01:00'),
-  (103, 30, 'ph',      'after',  7.4,  NULL, NULL, '2026-02-01 10:02:00'),
-
-  -- Session 31: 2026-02-08 | pH <7→7.7 (6.8) | bromine 9.5→✓ | TA 30→60 | calcium 130→✓
-  (104, 31, 'ta',      'before', 30,   NULL, NULL, '2026-02-08 10:01:00'),
-  (105, 31, 'ta',      'after',  60,   NULL, NULL, '2026-02-08 10:02:00'),
-  (106, 31, 'bromine', 'before', 9.5,  NULL, NULL, '2026-02-08 10:03:00'),
-  -- bromine after=✓ → skipped
-  (107, 31, 'ph',      'before', 6.8,  NULL, NULL, '2026-02-08 10:04:00'),
-  (108, 31, 'ph',      'after',  7.7,  NULL, NULL, '2026-02-08 10:05:00'),
-  (109, 31, 'calcium', 'before', 130,  NULL, NULL, '2026-02-08 10:06:00'),
-  -- calcium after=✓ → skipped
-
-  -- Session 32: 2026-02-15 | pH 7.5→— | bromine 0→—
-  (110, 32, 'bromine', 'before', 0,    NULL, NULL, '2026-02-15 10:01:00'),
-  (111, 32, 'ph',      'before', 7.5,  NULL, NULL, '2026-02-15 10:02:00');
-  -- both afters=— → skipped
+PRAGMA defer_foreign_keys=TRUE;
+INSERT INTO "d1_migrations" ("id","name","applied_at") VALUES(1,'0001_initial.sql','2026-02-19 22:12:52');
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(1,'2025-06-25 10:00:00','2025-06-25 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(2,'2025-06-30 10:00:00','2025-06-30 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(3,'2025-07-04 10:00:00','2025-07-04 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(4,'2025-07-12 10:00:00','2025-07-12 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(5,'2025-07-21 10:00:00','2025-07-21 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(6,'2025-07-22 10:00:00','2025-07-22 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(7,'2025-08-04 10:00:00','2025-08-04 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(8,'2025-08-11 10:00:00','2025-08-11 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(9,'2025-08-16 10:00:00','2025-08-16 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(10,'2025-08-23 10:00:00','2025-08-23 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(11,'2025-08-24 10:00:00','2025-08-24 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(12,'2025-09-03 10:00:00','2025-09-03 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(13,'2025-09-09 10:00:00','2025-09-09 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(14,'2025-09-15 10:00:00','2025-09-15 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(15,'2025-09-23 10:00:00','2025-09-23 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(16,'2025-10-04 10:00:00','2025-10-04 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(17,'2025-10-10 10:00:00','2025-10-10 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(18,'2025-10-18 10:00:00','2025-10-18 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(19,'2025-11-03 10:00:00','2025-11-03 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(20,'2025-11-08 10:00:00','2025-11-08 10:30:00','Post drain/refill rebalance');
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(21,'2025-11-16 10:00:00','2025-11-16 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(22,'2025-11-26 10:00:00','2025-11-26 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(23,'2025-12-03 10:00:00','2025-12-03 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(24,'2025-12-10 10:00:00','2025-12-10 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(25,'2025-12-14 10:00:00','2025-12-14 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(26,'2025-12-31 10:00:00','2025-12-31 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(27,'2026-01-07 10:00:00','2026-01-07 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(28,'2026-01-13 10:00:00','2026-01-13 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(29,'2026-01-22 10:00:00','2026-01-22 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(30,'2026-02-01 10:00:00','2026-02-01 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(31,'2026-02-08 10:00:00','2026-02-08 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(32,'2026-02-15 10:00:00','2026-02-15 10:30:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(33,'2026-02-24 00:30:53',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(34,'2026-02-24 04:53:19',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(35,'2026-03-05 21:17:27',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(36,'2026-03-05 22:46:09',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(37,'2026-03-06 02:06:50','2026-03-06 02:06:57',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(38,'2026-03-06 02:06:58','2026-03-06 02:08:23',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(39,'2026-03-08 00:22:16','2026-03-08 00:31:52',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(40,'2026-03-08 00:31:53','2026-03-08 00:32:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(41,'2026-03-08 01:05:33',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(42,'2026-03-17 02:18:05','2026-03-17 02:21:11',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(43,'2026-03-23 02:33:44',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(44,'2026-03-23 02:33:57','2026-03-23 02:37:25',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(45,'2026-03-28 18:07:25','2026-03-28 18:28:32',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(46,'2026-04-05 17:50:31','2026-04-05 17:57:25',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(47,'2026-04-05 17:57:27',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(48,'2026-04-11 21:04:53','2026-04-11 21:08:31',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(49,'2026-04-11 21:08:50',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(50,'2026-04-25 21:15:52','2026-04-25 21:26:44',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(51,'2026-05-04 00:51:00',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(52,'2026-05-17 17:10:42','2026-05-17 17:12:20',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(53,'2026-05-17 17:12:21',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(54,'2026-05-24 00:57:53','2026-05-24 01:00:38',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(55,'2026-05-31 02:51:07','2026-05-31 02:58:34',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(56,'2026-06-29 15:37:54',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(57,'2026-06-29 19:33:12',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(58,'2026-07-05 02:17:23','2026-07-05 02:30:34',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(59,'2026-07-05 02:30:44','2026-07-05 02:33:09',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(60,'2026-07-05 18:16:06',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(61,'2026-07-16 03:31:11',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(62,'2026-07-21 01:41:26','2026-07-21 01:44:16',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(63,'2026-08-04 03:06:38','2026-08-04 03:19:10',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(64,'2026-08-11 03:06:58','2026-08-11 03:07:03',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(65,'2026-08-11 03:07:05','2026-08-11 03:12:21',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(66,'2026-08-18 03:14:15',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(67,'2026-08-25 03:05:23','2026-08-25 03:08:11',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(68,'2026-08-30 19:15:50','2026-08-30 19:15:59',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(69,'2026-08-30 19:16:01','2026-08-30 19:21:00',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(70,'2026-08-30 19:21:01',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(71,'2026-09-07 23:33:47',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(72,'2026-09-07 23:35:59','2026-09-07 23:37:25',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(73,'2026-09-07 23:37:38','2026-09-07 23:40:06',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(74,'2026-09-21 01:32:12',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(75,'2026-09-21 01:33:41','2026-09-21 01:34:59',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(76,'2026-10-01 20:06:26',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(77,'2026-10-01 20:06:44','2026-10-01 20:07:58',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(78,'2026-10-01 20:08:56','2026-10-01 20:15:07',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(79,'2026-10-01 20:49:17',NULL,NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(80,'2026-10-01 20:52:00','2026-10-01 20:52:05',NULL);
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(1,1,'bromine','before',1.25,NULL,NULL,'2025-06-25 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(2,1,'bromine','after',6.25,NULL,NULL,'2025-06-25 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(3,1,'ph','before',7.1,NULL,NULL,'2025-06-25 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(4,1,'ph','after',7.7,NULL,NULL,'2025-06-25 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(5,2,'ph','before',7,NULL,NULL,'2025-06-30 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(6,2,'ph','after',7.7,NULL,NULL,'2025-06-30 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(7,3,'ta','before',10,NULL,NULL,'2025-07-04 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(8,3,'ta','after',60,NULL,NULL,'2025-07-04 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(9,3,'bromine','before',3.75,NULL,NULL,'2025-07-04 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(10,3,'bromine','after',7.5,NULL,NULL,'2025-07-04 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(11,3,'ph','before',7.3,NULL,NULL,'2025-07-04 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(12,3,'ph','after',7.6,NULL,NULL,'2025-07-04 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(13,3,'calcium','before',130,NULL,NULL,'2025-07-04 10:07:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(14,4,'ph','before',7.5,NULL,NULL,'2025-07-12 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(15,5,'bromine','before',1.25,NULL,NULL,'2025-07-21 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(16,5,'bromine','after',7.5,NULL,NULL,'2025-07-21 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(17,5,'ph','before',7.2,NULL,NULL,'2025-07-21 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(18,5,'ph','after',7.7,NULL,NULL,'2025-07-21 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(19,5,'calcium','before',120,NULL,NULL,'2025-07-21 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(20,5,'calcium','after',140,NULL,NULL,'2025-07-21 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(21,6,'ph','before',7.2,NULL,NULL,'2025-07-22 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(22,7,'ta','before',20,NULL,NULL,'2025-08-04 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(23,7,'ta','after',60,NULL,NULL,'2025-08-04 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(24,7,'bromine','before',0.5,NULL,NULL,'2025-08-04 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(25,7,'bromine','after',8.5,NULL,NULL,'2025-08-04 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(26,7,'ph','before',7.6,NULL,NULL,'2025-08-04 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(27,7,'calcium','before',150,NULL,NULL,'2025-08-04 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(28,8,'ta','before',60,NULL,NULL,'2025-08-11 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(29,8,'bromine','before',10,NULL,NULL,'2025-08-11 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(30,8,'ph','before',7.6,NULL,NULL,'2025-08-11 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(31,8,'calcium','before',160,NULL,NULL,'2025-08-11 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(32,9,'ta','before',50,NULL,NULL,'2025-08-16 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(33,9,'bromine','before',5,NULL,NULL,'2025-08-16 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(34,9,'ph','before',7.4,NULL,NULL,'2025-08-16 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(35,9,'calcium','before',150,NULL,NULL,'2025-08-16 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(36,10,'bromine','before',13,NULL,NULL,'2025-08-23 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(37,10,'bromine','after',11,NULL,NULL,'2025-08-23 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(38,10,'ph','before',7.7,NULL,NULL,'2025-08-23 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(39,11,'bromine','before',5.5,NULL,NULL,'2025-08-24 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(40,11,'ph','before',7.4,NULL,NULL,'2025-08-24 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(41,11,'ph','after',7.6,NULL,NULL,'2025-08-24 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(42,12,'ta','before',40,NULL,NULL,'2025-09-03 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(43,12,'ta','after',70,NULL,NULL,'2025-09-03 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(44,12,'bromine','before',0.5,NULL,NULL,'2025-09-03 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(45,12,'bromine','after',6.5,NULL,NULL,'2025-09-03 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(46,12,'ph','before',7,NULL,NULL,'2025-09-03 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(47,12,'ph','after',7.5,NULL,NULL,'2025-09-03 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(48,12,'calcium','before',160,NULL,NULL,'2025-09-03 10:07:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(49,13,'bromine','before',2.5,NULL,NULL,'2025-09-09 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(50,13,'ph','before',7.7,NULL,NULL,'2025-09-09 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(51,14,'ph','before',7.5,NULL,NULL,'2025-09-15 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(52,15,'ph','before',6.8,NULL,NULL,'2025-09-23 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(53,15,'ph','after',7.4,NULL,NULL,'2025-09-23 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(54,16,'ta','before',20,NULL,NULL,'2025-10-04 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(55,16,'ta','after',60,NULL,NULL,'2025-10-04 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(56,16,'bromine','before',16,NULL,NULL,'2025-10-04 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(57,16,'bromine','after',6.25,NULL,NULL,'2025-10-04 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(58,16,'ph','before',8.2,NULL,NULL,'2025-10-04 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(59,16,'ph','after',7.7,NULL,NULL,'2025-10-04 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(60,16,'calcium','before',140,NULL,NULL,'2025-10-04 10:07:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(61,17,'bromine','before',4.5,NULL,NULL,'2025-10-10 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(62,17,'ph','before',7.1,NULL,NULL,'2025-10-10 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(63,17,'ph','after',7.6,NULL,NULL,'2025-10-10 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(64,18,'bromine','before',2,NULL,NULL,'2025-10-18 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(65,18,'bromine','after',8.5,NULL,NULL,'2025-10-18 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(66,18,'ph','before',7.4,NULL,NULL,'2025-10-18 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(67,18,'ph','after',7.6,NULL,NULL,'2025-10-18 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(68,19,'bromine','before',12.5,NULL,NULL,'2025-11-03 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(69,19,'bromine','after',12,NULL,NULL,'2025-11-03 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(70,19,'ph','before',6.8,NULL,NULL,'2025-11-03 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(71,19,'ph','after',7.4,NULL,NULL,'2025-11-03 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(72,20,'ta','before',30,NULL,NULL,'2025-11-08 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(73,20,'ta','after',60,NULL,NULL,'2025-11-08 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(74,20,'bromine','after',5.5,NULL,NULL,'2025-11-08 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(75,20,'ph','before',7.8,NULL,NULL,'2025-11-08 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(76,20,'ph','after',7.5,NULL,NULL,'2025-11-08 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(77,20,'calcium','after',140,NULL,NULL,'2025-11-08 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(78,21,'bromine','before',9.5,NULL,NULL,'2025-11-16 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(79,21,'ph','before',8.2,NULL,NULL,'2025-11-16 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(80,21,'ph','after',7.4,NULL,NULL,'2025-11-16 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(81,22,'bromine','before',8.5,NULL,NULL,'2025-11-26 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(82,22,'ph','before',7.5,NULL,NULL,'2025-11-26 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(83,23,'ph','before',6.8,NULL,NULL,'2025-12-03 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(84,23,'ph','after',7.5,NULL,NULL,'2025-12-03 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(85,24,'bromine','before',9.5,NULL,NULL,'2025-12-10 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(86,24,'ph','before',7.1,NULL,NULL,'2025-12-10 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(87,24,'ph','after',7.5,NULL,NULL,'2025-12-10 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(88,25,'ta','before',30,NULL,NULL,'2025-12-14 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(89,25,'ta','after',60,NULL,NULL,'2025-12-14 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(90,25,'bromine','before',7,NULL,NULL,'2025-12-14 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(91,25,'ph','before',6.8,NULL,NULL,'2025-12-14 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(92,25,'ph','after',7.6,NULL,NULL,'2025-12-14 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(93,26,'ph','before',7.5,NULL,NULL,'2025-12-31 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(94,27,'bromine','before',5.5,NULL,NULL,'2026-01-07 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(95,27,'ph','before',7.3,NULL,NULL,'2026-01-07 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(96,27,'ph','after',7.7,NULL,NULL,'2026-01-07 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(97,28,'bromine','before',12.5,NULL,NULL,'2026-01-13 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(98,28,'ph','before',8,NULL,NULL,'2026-01-13 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(99,29,'bromine','before',12.5,NULL,NULL,'2026-01-22 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(100,29,'ph','before',6.8,NULL,NULL,'2026-01-22 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(101,29,'ph','after',7.7,NULL,NULL,'2026-01-22 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(102,30,'ph','before',6.8,NULL,NULL,'2026-02-01 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(103,30,'ph','after',7.4,NULL,NULL,'2026-02-01 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(104,31,'ta','before',30,NULL,NULL,'2026-02-08 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(105,31,'ta','after',60,NULL,NULL,'2026-02-08 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(106,31,'bromine','before',9.5,NULL,NULL,'2026-02-08 10:03:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(107,31,'ph','before',6.8,NULL,NULL,'2026-02-08 10:04:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(108,31,'ph','after',7.7,NULL,NULL,'2026-02-08 10:05:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(109,31,'calcium','before',130,NULL,NULL,'2026-02-08 10:06:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(110,32,'bromine','before',0,NULL,NULL,'2026-02-15 10:01:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(111,32,'ph','before',7.5,NULL,NULL,'2026-02-15 10:02:00');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(112,33,'bromine','before',1.25,1,10,'2026-02-24 00:33:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(113,33,'ph','before',7.1,NULL,NULL,'2026-02-24 00:34:25');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(114,33,'ph','after',7.7,NULL,NULL,'2026-02-24 00:37:19');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(115,34,'bromine','before',10,8,10,'2026-02-24 04:53:26');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(116,35,'ta','before',40,4,25,'2026-03-05 21:20:08');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(117,36,'bromine','before',16.25,13,10,'2026-03-05 22:46:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(118,37,'bromine','before',11.25,9,10,'2026-03-06 02:06:55');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(119,38,'ph','before',7.5,NULL,NULL,'2026-03-06 02:08:20');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(120,39,'bromine','before',3.75,3,10,'2026-03-08 00:23:59');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(121,39,'ph','before',7.6,NULL,NULL,'2026-03-08 00:27:05');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(122,39,'calcium','before',140,14,25,'2026-03-08 00:31:49');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(123,40,'bromine','before',5,4,10,'2026-03-08 00:31:58');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(124,42,'bromine','before',3.5,7,25,'2026-03-17 02:20:17');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(125,42,'ph','before',7.5,NULL,NULL,'2026-03-17 02:21:09');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(126,44,'bromine','before',8,16,25,'2026-03-23 02:36:24');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(127,44,'ph','before',7.6,NULL,NULL,'2026-03-23 02:37:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(128,45,'ta','before',30,3,25,'2026-03-28 18:08:40');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(129,45,'ta','after',50,5,25,'2026-03-28 18:13:34');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(130,45,'bromine','before',4.5,9,25,'2026-03-28 18:27:41');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(131,45,'ph','before',7.4,NULL,NULL,'2026-03-28 18:28:28');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(132,46,'bromine','before',1,2,25,'2026-04-05 17:51:58');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(133,46,'ph','before',7.3,NULL,NULL,'2026-04-05 17:52:54');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(134,46,'calcium','before',140,14,25,'2026-04-05 17:57:22');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(135,47,'ph','before',7.5,NULL,NULL,'2026-04-05 17:58:14');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(136,48,'bromine','before',4,8,25,'2026-04-11 21:07:17');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(137,48,'ph','before',7.2,NULL,NULL,'2026-04-11 21:08:25');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(138,49,'ph','before',7.5,NULL,NULL,'2026-04-11 21:11:06');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(139,50,'ta','before',40,4,25,'2026-04-25 21:19:44');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(140,50,'ta','after',70,7,25,'2026-04-25 21:25:33');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(141,50,'bromine','before',8.5,17,25,'2026-04-25 21:25:51');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(142,50,'ph','before',7.8,NULL,NULL,'2026-04-25 21:26:31');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(143,51,'bromine','before',5.5,11,25,'2026-05-04 00:52:37');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(144,51,'ph','before',7.7,NULL,NULL,'2026-05-04 00:53:36');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(145,52,'bromine','before',5,10,25,'2026-05-17 17:12:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(146,53,'ta','before',30,3,25,'2026-05-17 17:13:56');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(147,53,'ta','after',60,6,25,'2026-05-17 17:19:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(148,53,'ph','before',7.4,NULL,NULL,'2026-05-17 17:20:16');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(149,53,'calcium','before',120,12,25,'2026-05-17 17:22:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(150,53,'calcium','after',150,15,25,'2026-05-17 17:27:21');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(151,54,'bromine','before',9.5,19,25,'2026-05-24 00:59:54');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(152,54,'ph','before',7.5,NULL,NULL,'2026-05-24 01:00:34');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(153,55,'bromine','before',3,6,25,'2026-05-31 02:54:26');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(154,55,'ph','before',7.3,NULL,NULL,'2026-05-31 02:55:25');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(155,55,'ph','after',7.5,NULL,NULL,'2026-05-31 02:58:26');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(156,56,'ph','before',6.8,NULL,NULL,'2026-06-29 15:38:02');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(157,57,'ph','before',7.6,NULL,NULL,'2026-06-29 19:33:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(158,58,'ta','before',30,3,25,'2026-07-05 02:18:56');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(159,58,'ta','after',60,6,25,'2026-07-05 02:23:22');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(160,58,'ph','before',8.2,NULL,NULL,'2026-07-05 02:24:08');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(161,58,'ph','after',7.5,NULL,NULL,'2026-07-05 02:30:33');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(162,59,'calcium','before',140,14,25,'2026-07-05 02:33:07');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(163,60,'bromine','before',9,18,25,'2026-07-05 18:17:24');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(164,60,'ph','before',7.5,NULL,NULL,'2026-07-05 18:17:28');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(165,61,'bromine','before',3,6,25,'2026-07-16 03:32:47');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(166,61,'ph','before',7,NULL,NULL,'2026-07-16 03:33:29');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(167,61,'ph','after',7.7,NULL,NULL,'2026-07-16 03:42:10');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(168,62,'bromine','before',9.5,19,25,'2026-07-21 01:41:33');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(169,62,'ph','before',7.2,NULL,NULL,'2026-07-21 01:42:07');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(170,62,'ph','after',7.6,NULL,NULL,'2026-07-21 01:44:12');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(171,63,'ta','before',30,3,25,'2026-08-04 03:07:59');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(172,63,'ta','after',60,6,25,'2026-08-04 03:11:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(173,63,'bromine','before',8.5,17,25,'2026-08-04 03:14:04');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(174,63,'ph','before',7.3,NULL,NULL,'2026-08-04 03:14:44');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(175,63,'ph','after',7.6,NULL,NULL,'2026-08-04 03:17:10');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(176,63,'calcium','before',140,14,25,'2026-08-04 03:18:59');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(177,64,'ph','before',7.4,NULL,NULL,'2026-08-11 03:07:01');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(178,65,'bromine','before',2,4,25,'2026-08-11 03:08:45');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(179,66,'bromine','before',6.5,13,25,'2026-08-18 03:14:21');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(180,66,'ph','before',7.5,NULL,NULL,'2026-08-18 03:14:58');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(181,67,'bromine','before',13,NULL,NULL,'2026-08-25 03:08:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(182,68,'bromine','before',8,16,25,'2026-08-30 19:15:57');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(183,69,'ta','before',20,2,25,'2026-08-30 19:17:08');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(184,69,'ta','after',50,5,25,'2026-08-30 19:20:46');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(185,69,'ph','before',7.5,NULL,NULL,'2026-08-30 19:20:48');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(186,70,'ph','before',7.3,NULL,NULL,'2026-08-30 19:22:27');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(187,70,'ph','after',7.8,NULL,NULL,'2026-08-30 19:29:18');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(188,71,'bromine','before',7.5,15,25,'2026-09-07 23:35:33');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(189,72,'bromine','before',8,16,25,'2026-09-07 23:36:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(190,72,'ph','before',7.4,NULL,NULL,'2026-09-07 23:37:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(191,73,'calcium','before',150,15,25,'2026-09-07 23:39:54');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(192,74,'ph','before',7.3,NULL,NULL,'2026-09-21 01:32:15');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(193,75,'ph','before',7.3,NULL,NULL,'2026-09-21 01:33:43');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(194,75,'ph','after',7.6,NULL,NULL,'2026-09-21 01:34:58');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(195,77,'bromine','before',14,NULL,NULL,'2026-10-01 20:07:50');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(196,78,'ta','after',50,5,25,'2026-10-01 20:15:06');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(197,79,'ph','before',7.3,NULL,NULL,'2026-10-01 20:49:21');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(198,80,'ph','before',7.6,NULL,NULL,'2026-10-01 20:52:03');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(2,35,'Baking Soda',0.9,'2026-03-05 21:21:21');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(3,53,'Calcium Chloride',0.5,'2026-05-17 17:26:07');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(4,58,'Dry Acid (sodium bisulfate)',1.4,'2026-07-05 02:30:30');
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(1,'drain_refill','2025-11-08 09:00:00',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(2,'filter_change','2026-02-01 09:00:00',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(3,'filter_change','2026-03-08 01:05:20',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(4,'filter_change','2026-04-11 23:21:04',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(5,'water_change','2026-07-05 02:16:44',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(6,'filter_change','2026-07-05 02:16:45',NULL);
+INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(7,'drain_refill','2026-07-05 02:17:01','Sodium bromide added');
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('d1_migrations',1);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_sessions',80);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_readings',198);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('chemical_additions',4);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('maintenance_events',7);

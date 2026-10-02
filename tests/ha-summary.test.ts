@@ -16,10 +16,13 @@ const accessTeamDomain = "access.example.test";
 const accessAudience = "test-audience";
 const accessIssuer = `https://${accessTeamDomain}`;
 const accessJwksUrl = `https://${accessTeamDomain}/cdn-cgi/access/certs`;
+const failingJwksTeamDomain = "jwks-failure.example.test";
+const failingJwksUrl = `https://${failingJwksTeamDomain}/cdn-cgi/access/certs`;
 const cacheControl = "private, no-store";
 
 let privateKey: CryptoKey;
 let originalFetch: typeof fetch;
+let failJwksFetch = false;
 
 beforeAll(async () => {
   const keyPair = await generateKeyPair("RS256");
@@ -31,6 +34,7 @@ beforeAll(async () => {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (url === accessJwksUrl) return Response.json({ keys: [publicJwk] });
+    if (url === failingJwksUrl && failJwksFetch) throw new Error("JWKS unavailable");
     return originalFetch(input, init);
   });
 });
@@ -128,7 +132,7 @@ async function createAccessToken({
 }: {
   audience?: string;
   issuer?: string;
-  expirationTime?: string | number;
+  expirationTime?: string | number | null;
   notBefore?: string | number;
   signingKey?: CryptoKey;
 } = {}) {
@@ -136,8 +140,8 @@ async function createAccessToken({
     .setProtectedHeader({ alg: "RS256", kid: "test-key" })
     .setAudience(audience)
     .setIssuer(issuer)
-    .setIssuedAt()
-    .setExpirationTime(expirationTime);
+    .setIssuedAt();
+  if (expirationTime !== null) token.setExpirationTime(expirationTime);
   if (notBefore !== undefined) token.setNotBefore(notBefore);
   return token.sign(signingKey);
 }
@@ -303,6 +307,37 @@ describe("HA summary", () => {
       expect(response.status).toBe(401);
       expect(response.headers.get("Cache-Control")).toBe(cacheControl);
     }
+  });
+
+  it("rejects a validly signed Access JWT with no expiry claim", async () => {
+    const response = await loader({
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: await accessHeaders({ expirationTime: null }),
+      }),
+      context: { cloudflare: { env: accessEnv(db) } },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+  });
+
+  it("rejects JWKS fetch failures without exposing their detail", async () => {
+    failJwksFetch = true;
+    const response = await loader({
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: await accessHeaders({ issuer: `https://${failingJwksTeamDomain}` }),
+      }),
+      context: {
+        cloudflare: {
+          env: { ...accessEnv(db), ACCESS_TEAM_DOMAIN: failingJwksTeamDomain },
+        },
+      },
+    });
+    failJwksFetch = false;
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+    await expect(response.text()).resolves.toBe("Unauthorized");
   });
 
   it("paginates equal-timestamp additions and readings without skipping or duplicating", async () => {

@@ -58,6 +58,7 @@ async function hasValidAccessJwt(request: Request, env: Env): Promise<boolean> {
       algorithms: ["RS256"],
       audience,
       issuer: `https://${teamDomain}`,
+      requiredClaims: ["exp"],
     });
     return true;
   } catch {

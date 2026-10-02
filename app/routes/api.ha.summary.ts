@@ -47,7 +47,7 @@ function hasValidBearerToken(authorization: string | null, token: string): boole
 }
 
 function parseSince(value: string | null): string | null {
-  if (!value) return null;
+  if (value === null) return null;
   if (
     !/^\d{4}-\d{2}-\d{2}$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(
       value
@@ -61,7 +61,7 @@ function parseSince(value: string | null): string | null {
 }
 
 function parseCursor(value: string | null): HaHistoryCursor | null {
-  if (!value) return null;
+  if (value === null) return null;
   const [createdAt, recordType, id, extra] = value.split("|");
   const parsedId = Number(id);
   if (
@@ -77,7 +77,7 @@ function parseCursor(value: string | null): HaHistoryCursor | null {
 }
 
 function parseLimit(value: string | null): number {
-  if (!value) return DEFAULT_HISTORY_LIMIT;
+  if (value === null) return DEFAULT_HISTORY_LIMIT;
   const limit = Number(value);
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_HISTORY_LIMIT) {
     throw new Error(`limit must be an integer from 1 to ${MAX_HISTORY_LIMIT}`);

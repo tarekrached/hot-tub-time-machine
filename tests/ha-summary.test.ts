@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { loader } from "../app/routes/api.ha.summary";
+import { haApiOptionsResponse, withHaApiNoStore } from "../workers/ha-api-response";
 import { getHaHistory, getHaSummary } from "server/ha-summary";
 import type { TestType } from "shared/types";
 
@@ -198,12 +199,20 @@ describe("HA summary", () => {
         },
       },
     });
+    const empty = await loader({
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: { Authorization: "Bearer " },
+      }),
+      context: { cloudflare: { env: { DB: db, HA_SUMMARY_TOKEN: "" } } },
+    });
 
     expect(missing.status).toBe(401);
     expect(missing.headers.get("WWW-Authenticate")).toBe("Bearer");
     expect(missing.headers.get("Cache-Control")).toBe(cacheControl);
     expect(unset.status).toBe(401);
     expect(unset.headers.get("Cache-Control")).toBe(cacheControl);
+    expect(empty.status).toBe(401);
+    expect(empty.headers.get("Cache-Control")).toBe(cacheControl);
   });
 
   it("accepts the configured bearer token and does not cache the summary", async () => {
@@ -269,6 +278,9 @@ describe("HA summary", () => {
 
   it.each([
     "history=1&limit=501",
+    "history=1&limit=",
+    "history=1&since=",
+    "history=1&cursor=",
     "history=1&since=2026-02-30",
     "history=1&cursor=2026-02-30%2010%3A00%3A00%7Creading%7C1",
     "history=1&cursor=2026-02-01%2024%3A00%3A00%7Creading%7C1",
@@ -284,6 +296,21 @@ describe("HA summary", () => {
 
     expect(response.status).toBe(400);
     expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+  });
+
+  it("marks framework 405s and OPTIONS responses as non-cacheable without a payload", async () => {
+    const post = new Request("https://example.test/api/ha/summary", { method: "POST" });
+    const frameworkResponse = withHaApiNoStore(post, new Response(null, { status: 405 }));
+    const options = haApiOptionsResponse(
+      new Request("https://example.test/api/ha/summary", { method: "OPTIONS" })
+    );
+
+    expect(frameworkResponse.status).toBe(405);
+    expect(frameworkResponse.headers.get("Cache-Control")).toBe(cacheControl);
+    expect(options).not.toBeNull();
+    expect(options?.status).toBe(405);
+    expect(options?.headers.get("Cache-Control")).toBe(cacheControl);
+    await expect(options?.text()).resolves.toBe("");
   });
 
   it("hides database failures behind a generic non-cacheable response", async () => {

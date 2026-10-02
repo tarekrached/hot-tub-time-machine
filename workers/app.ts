@@ -1,4 +1,5 @@
 import { createRequestHandler } from "react-router";
+import { haApiOptionsResponse, withHaApiNoStore } from "./ha-api-response";
 
 declare module "react-router" {
   interface AppLoadContext {
@@ -17,8 +18,12 @@ const requestHandler = createRequestHandler(
 
 export default {
   async fetch(request, env, ctx) {
-    return requestHandler(request, {
+    const optionsResponse = haApiOptionsResponse(request);
+    if (optionsResponse) return optionsResponse;
+
+    const response = await requestHandler(request, {
       cloudflare: { env, ctx },
     });
+    return withHaApiNoStore(request, response);
   },
 } satisfies ExportedHandler<Env>;

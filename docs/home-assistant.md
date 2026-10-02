@@ -111,13 +111,13 @@ For a real numeric-history backfill, build a separate one-shot HA custom integra
 
 ## Observed testing cadence
 
-The committed `seeds/historical.sql` is a production export last refreshed in February 2026. It covers 32 sessions from 2025-06-25 through 2026-02-15. Session gaps had a 7-day median, a 6-9 day interquartile range, and a 1-17 day range. pH was tested in all 32 sessions, so it has the same distribution.
+The committed `seeds/historical.sql` is a production export refreshed on 2026-10-02. It covers 58 distinct test days from 2025-06-25 through 2026-10-01 (79 session rows, with multiple and incomplete sessions on some days). Test-day gaps had a 7-day median, a 6-9 day interquartile range, and a 1-29 day range.
 
-| Initial test reading | Sessions | Median gap | Interquartile range | Range |
+| Initial test reading | Test days | Median gap | Interquartile range | Range |
 |---|---:|---:|---:|---:|
-| pH | 32 | 7 days | 6-9 days | 1-17 days |
-| Bromine | 23 | 9 days | 6.25-14 days | 1-25 days |
-| Total Alkalinity | 9 | 31 days | 15.25-35.25 days | 5-56 days |
-| Calcium Hardness | 8 | 17 days | 10.5-24.5 days | 5-127 days |
+| pH | 56 | 7 days | 6-10 days | 1-29 days |
+| Bromine | 47 | 8 days | 6-13 days | 1-35 days |
+| Total Alkalinity | 16 | 28 days | 22.5-33 days | 5-56 days |
+| Calcium Hardness | 14 | 28 days | 17-34 days | 5-127 days |
 
-The data supports replacing the weekly OmniFocus repeater with an HA reminder driven by pH's endpoint status: the observed session and pH median is exactly seven days, with most gaps between six and nine days. Keep the app's 21-day TA and calcium cadence for now; the observed gaps are sparse and variable. This export is stale, so refresh `seeds/historical.sql` from production and rerun these figures before treating them as a current behavioral baseline.
+The data supports replacing the weekly OmniFocus repeater with an HA reminder driven by pH's endpoint status: the observed test-day and pH median is exactly seven days. Keep the app's 21-day TA and calcium cadence for now; those readings remain sparse and variable. Refresh `seeds/historical.sql` and rerun these figures when the production data changes materially.

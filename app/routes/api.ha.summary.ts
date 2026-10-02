@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import {
   DEFAULT_HISTORY_LIMIT,
   getHaHistory,
@@ -6,17 +7,51 @@ import {
   type HaHistoryCursor,
 } from "server/ha-summary";
 
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store" };
+
 type LoaderArgs = {
   request: Request;
   context: { cloudflare: { env: Env } };
 };
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return Response.json(data, { status, headers: NO_STORE_HEADERS });
+}
+
+function isValidCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = match.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function isValidSqliteUtcTimestamp(value: string): boolean {
+  const match = /^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (!match || !isValidCalendarDate(match[1])) return false;
+  const [, , hour, minute, second] = match;
+  return Number(hour) < 24 && Number(minute) < 60 && Number(second) < 60;
+}
+
+function hasValidBearerToken(authorization: string | null, token: string): boolean {
+  const encoder = new TextEncoder();
+  const supplied = encoder.encode(authorization ?? "");
+  const expected = encoder.encode(`Bearer ${token}`);
+  return supplied.byteLength === expected.byteLength
+    ? timingSafeEqual(supplied, expected)
+    : !timingSafeEqual(supplied, supplied);
+}
 
 function parseSince(value: string | null): string | null {
   if (!value) return null;
   if (
     !/^\d{4}-\d{2}-\d{2}$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(
       value
-    )
+    ) || !isValidCalendarDate(value)
   ) {
     throw new Error("since must be an ISO date");
   }
@@ -28,15 +63,17 @@ function parseSince(value: string | null): string | null {
 function parseCursor(value: string | null): HaHistoryCursor | null {
   if (!value) return null;
   const [createdAt, recordType, id, extra] = value.split("|");
+  const parsedId = Number(id);
   if (
     extra !== undefined ||
-    !createdAt ||
+    !isValidSqliteUtcTimestamp(createdAt || "") ||
     (recordType !== "addition" && recordType !== "reading") ||
-    !/^\d+$/.test(id || "")
+    !/^[1-9]\d*$/.test(id || "") ||
+    !Number.isSafeInteger(parsedId)
   ) {
     throw new Error("cursor is invalid");
   }
-  return { created_at: createdAt, record_type: recordType, id: Number(id) };
+  return { created_at: createdAt, record_type: recordType, id: parsedId };
 }
 
 function parseLimit(value: string | null): number {
@@ -50,33 +87,41 @@ function parseLimit(value: string | null): number {
 
 export async function loader({ request, context }: LoaderArgs) {
   const { env } = context.cloudflare;
-  if (
-    !env.HA_SUMMARY_TOKEN ||
-    request.headers.get("Authorization") !== `Bearer ${env.HA_SUMMARY_TOKEN}`
-  ) {
+  if (!env.HA_SUMMARY_TOKEN || !hasValidBearerToken(request.headers.get("Authorization"), env.HA_SUMMARY_TOKEN)) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: { "WWW-Authenticate": "Bearer" },
+      headers: { ...NO_STORE_HEADERS, "WWW-Authenticate": "Bearer" },
     });
   }
 
   const params = new URL(request.url).searchParams;
   if (params.get("history") !== "1") {
-    return Response.json(await getHaSummary(env.DB));
+    try {
+      return jsonResponse(await getHaSummary(env.DB));
+    } catch (error) {
+      console.error("Failed to load HA summary", error);
+      return jsonResponse({ error: "Internal server error" }, 500);
+    }
+  }
+
+  let historyOptions;
+  try {
+    historyOptions = {
+      since: parseSince(params.get("since")),
+      cursor: parseCursor(params.get("cursor")),
+      limit: parseLimit(params.get("limit")),
+    };
+  } catch (error) {
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Invalid history query" },
+      400
+    );
   }
 
   try {
-    return Response.json(
-      await getHaHistory(env.DB, {
-        since: parseSince(params.get("since")),
-        cursor: parseCursor(params.get("cursor")),
-        limit: parseLimit(params.get("limit")),
-      })
-    );
+    return jsonResponse(await getHaHistory(env.DB, historyOptions));
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Invalid history query" },
-      { status: 400 }
-    );
+    console.error("Failed to load HA history", error);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 }

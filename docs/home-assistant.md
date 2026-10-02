@@ -1,4 +1,13 @@
-# Home Assistant summary proposal
+# Home Assistant summary
+
+## What shipped (2026-10-02)
+
+- Worker: deployed from `main` at 2492624. Requests without a valid service token get Cloudflare Access's 302 to the login page; with it, a 200 JSON summary. Every response from `/api/ha/*` carries `Cache-Control: private, no-store`.
+- Cloudflare Access: service token `hottub-ha`, allowed by a **Service Auth** policy on the Access app for `hot-tub-time-machine.tarek-rached.workers.dev` (team `bitter-block-8324`). The Worker's `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` vars are in `wrangler.toml`.
+- 1Password: `op://Homelab/hottub-ha-access/client_id` and `.../client_secret`.
+- HA (VM 101): the `rest:` block below lives in its own package file, `/config/packages/hottub.yaml` (`configuration.yaml` already loads `packages/` via `!include_dir_named`, so it was not edited). The two secrets were appended to `/config/secrets.yaml`; the pre-change copy is `/config/secrets.yaml.bak-20261002-hottub`. To roll back, delete the package file, remove the two `hottub_access_*` lines, and restart.
+- Entities: `sensor.hot_tub_ph`, `sensor.hot_tub_bromine`, `sensor.hot_tub_total_alkalinity`, `sensor.hot_tub_calcium_hardness`, `sensor.hot_tub_latest_maintenance`, verified with real values after the restart.
+- Rotating the token: refresh it in Zero Trust, update the 1Password item, rewrite the two lines in HA's `secrets.yaml`, restart HA.
 
 `GET https://hot-tub-time-machine.tarek-rached.workers.dev/api/ha/summary` is a read-only endpoint for Home Assistant. The app remains the only place that writes test readings and maintenance events.
 
@@ -26,7 +35,7 @@ Create a Cloudflare Access service token and add it to an Access application's *
 
 ## HA configuration
 
-The account's live HA configuration is on HAOS VM 101, in `/config/configuration.yaml`; `/config/secrets.yaml` is alongside it. The `homelab` repository contains source records of some HA changes, not the live files. This is a proposal only: do not copy it into either location until the Worker endpoint is deployed and the Access service token exists.
+The account's live HA configuration is on HAOS VM 101, under `/config/`. The `homelab` repository contains source records of some HA changes, not the live files. This configuration is live as `/config/packages/hottub.yaml`; see "What shipped" above.
 
 Add the service token credentials to `/config/secrets.yaml`:
 
@@ -35,7 +44,7 @@ hottub_access_client_id: "REPLACE_WITH_ACCESS_CLIENT_ID"
 hottub_access_client_secret: "REPLACE_WITH_ACCESS_CLIENT_SECRET"
 ```
 
-Then add this top-level `rest:` block to `/config/configuration.yaml`. If that file already has a `rest:` key, add this resource beneath it rather than creating a second key. The 30-minute scan interval keeps the dashboard fresh without frequent Worker reads.
+The package file `/config/packages/hottub.yaml` holds this `rest:` block (a package keeps it from colliding with any top-level `rest:` key in `configuration.yaml`). The 30-minute scan interval keeps the dashboard fresh without frequent Worker reads.
 
 ```yaml
 rest:

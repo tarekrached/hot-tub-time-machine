@@ -4,6 +4,22 @@
 
 It requires `Authorization: Bearer <token>`. Its response contains the latest displayed value (`value` and `reading_at`), the latest initial test reading (`tested_at`), `days_since`, the existing app cadence in `cadence_days`, and a cadence `status` of `current`, `due`, `overdue`, or `never`. An after-treatment reading can be newer than `tested_at`; this matches the dashboard, which displays the latest value but bases cadence on the initial (`before`) reading. `maintenance` contains the ten newest event types and timestamps.
 
+## Full history API
+
+The compact summary remains the default. Add `history=1` to receive chronological test readings and chemical additions instead:
+
+```text
+GET /api/ha/summary?history=1&since=2026-01-01T00:00:00Z&limit=200
+```
+
+`since` is optional, inclusive, and must be an ISO date. Each result contains a `history` array and `next_cursor`. Readings include the session ID, test type, phase, PPM value, raw drops, sample size, and timestamp. Additions include the session ID, chemical, ounces, and timestamp. Results are sorted by timestamp, then type and ID. The default page size is 200 records and `limit` may be 1 through 500. To read all records, request the same `history=1`, `since`, and `limit` with the returned `cursor` until `next_cursor` is `null`; URL-encode the cursor value.
+
+```text
+GET /api/ha/summary?history=1&since=2026-01-01T00:00:00Z&limit=200&cursor=2026-01-03%2010%3A00%3A00%7Creading%7C42
+```
+
+History mode has the same bearer-token requirement as the compact summary. It is intended for a deliberate one-off importer or another consumer that owns pagination, not for a dashboard poll.
+
 ## Worker secret
 
 After the branch is merged and deployed, set a long random token as the Worker secret from this repository's root:
@@ -86,6 +102,12 @@ rest:
 ```
 
 Run HA's configuration check and restart or reload the REST integration after the edit. The four chemistry sensors expose their due state as the `status` attribute, so a dashboard can show it directly and a future reminder automation can trigger on `due` or `overdue` without duplicating cadence numbers.
+
+## HA history backfill
+
+Do not point the REST sensors above at `history=1` for backfill. The [RESTful Sensor integration](https://www.home-assistant.io/integrations/sensor.rest/) polls an endpoint and updates the current entity state and selected attributes; a later poll replaces those values. It does not import the returned timestamps into HA's recorder, and it cannot page through the response. At most, history mode could place one bounded page in an attribute, which is neither recorder history nor a durable backfill.
+
+For a real numeric-history backfill, build a separate one-shot HA custom integration or importer that fetches every history page and sends selected readings through HA's recorder statistics import API. The API supports `recorder/import_statistics`, but it requires statistics metadata and unit semantics that changed in recent HA versions, as documented in HA's [recorder statistics API notice](https://developers.home-assistant.io/blog/2025/10/16/recorder-statistics-api-changes/). Decide before implementing it whether to import before readings, after readings, or both, and map pH and PPM units correctly. Chemical additions are event records, not a natural long-term statistic; leave them in this app unless there is a separate HA event-log design. This repository does not include an importer or make any HA changes.
 
 ## Observed testing cadence
 

@@ -3,6 +3,10 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 main = "./workers/app.ts"
 
+[vars]
+ACCESS_TEAM_DOMAIN = "bitter-block-8324.cloudflareaccess.com"
+ACCESS_AUD = "964c9dfb45962c8296f02a41594f9c24cc184071143168a1ad24d5ea7475fd9d"
+
 [assets]
 directory = "./build/client"
 

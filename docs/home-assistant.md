@@ -2,7 +2,7 @@
 
 `GET https://hot-tub-time-machine.tarek-rached.workers.dev/api/ha/summary` is a read-only endpoint for Home Assistant. The app remains the only place that writes test readings and maintenance events.
 
-It requires `Authorization: Bearer <token>`. Its response contains the latest displayed value (`value` and `reading_at`), the latest initial test reading (`tested_at`), `days_since`, the existing app cadence in `cadence_days`, and a cadence `status` of `current`, `due`, `overdue`, or `never`. An after-treatment reading can be newer than `tested_at`; this matches the dashboard, which displays the latest value but bases cadence on the initial (`before`) reading. `maintenance` contains the ten newest event types and timestamps.
+Cloudflare Access protects the Worker. HA authenticates with a Cloudflare Access service token, and Access attaches a JWT that the Worker verifies against the team JWKS as defense in depth. Its response contains the latest displayed value (`value` and `reading_at`), the latest initial test reading (`tested_at`), `days_since`, the existing app cadence in `cadence_days`, and a cadence `status` of `current`, `due`, `overdue`, or `never`. An after-treatment reading can be newer than `tested_at`; this matches the dashboard, which displays the latest value but bases cadence on the initial (`before`) reading. `maintenance` contains the ten newest event types and timestamps.
 
 ## Full history API
 
@@ -18,26 +18,21 @@ GET /api/ha/summary?history=1&since=2026-01-01T00:00:00Z&limit=200
 GET /api/ha/summary?history=1&since=2026-01-01T00:00:00Z&limit=200&cursor=2026-01-03%2010%3A00%3A00%7Creading%7C42
 ```
 
-History mode has the same bearer-token requirement as the compact summary. It is intended for a deliberate one-off importer or another consumer that owns pagination, not for a dashboard poll.
+History mode has the same Cloudflare Access requirement as the compact summary. It is intended for a deliberate one-off importer or another consumer that owns pagination, not for a dashboard poll.
 
-## Worker secret
+## Cloudflare Access service token
 
-After the branch is merged and deployed, set a long random token as the Worker secret from this repository's root:
-
-```sh
-npx wrangler secret put HA_SUMMARY_TOKEN
-```
-
-This command needs Tarek's Cloudflare API token. Enter the token only at Wrangler's prompt; do not put it in `wrangler.toml`, a `.dev.vars` file, git, or command output.
+Create a Cloudflare Access service token and add it to an Access application's **Service Auth** policy that allows this Worker. Store the client ID and client secret only in HA's `secrets.yaml`; they are sent as `CF-Access-Client-Id` and `CF-Access-Client-Secret` on each request. Cloudflare Access validates the service token and attaches `Cf-Access-Jwt-Assertion`; the Worker validates that JWT's RS256 signature, issuer, audience, expiration, and not-before claims.
 
 ## HA configuration
 
-The account's live HA configuration is on HAOS VM 101, in `/config/configuration.yaml`; `/config/secrets.yaml` is alongside it. The `homelab` repository contains source records of some HA changes, not the live files. This is a proposal only: do not copy it into either location until the Worker endpoint has been deployed and its secret set.
+The account's live HA configuration is on HAOS VM 101, in `/config/configuration.yaml`; `/config/secrets.yaml` is alongside it. The `homelab` repository contains source records of some HA changes, not the live files. This is a proposal only: do not copy it into either location until the Worker endpoint is deployed and the Access service token exists.
 
-Add the bearer value to `/config/secrets.yaml` (the `Bearer ` prefix is intentional):
+Add the service token credentials to `/config/secrets.yaml`:
 
 ```yaml
-hot_tub_ha_summary_authorization: "Bearer REPLACE_WITH_THE_WORKER_TOKEN"
+hottub_access_client_id: "REPLACE_WITH_ACCESS_CLIENT_ID"
+hottub_access_client_secret: "REPLACE_WITH_ACCESS_CLIENT_SECRET"
 ```
 
 Then add this top-level `rest:` block to `/config/configuration.yaml`. If that file already has a `rest:` key, add this resource beneath it rather than creating a second key. The 30-minute scan interval keeps the dashboard fresh without frequent Worker reads.
@@ -47,7 +42,8 @@ rest:
   - resource: https://hot-tub-time-machine.tarek-rached.workers.dev/api/ha/summary
     method: GET
     headers:
-      Authorization: !secret hot_tub_ha_summary_authorization
+      CF-Access-Client-Id: !secret hottub_access_client_id
+      CF-Access-Client-Secret: !secret hottub_access_client_secret
     scan_interval: 1800
     timeout: 15
     sensor:

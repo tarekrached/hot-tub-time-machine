@@ -1,4 +1,5 @@
 interface Env {
   DB: D1Database;
-  HA_SUMMARY_TOKEN: string;
+  ACCESS_TEAM_DOMAIN: string;
+  ACCESS_AUD: string;
 }

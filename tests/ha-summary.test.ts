@@ -1,10 +1,41 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { loader } from "../app/routes/api.ha.summary";
 import { haApiOptionsResponse, withHaApiNoStore } from "../workers/ha-api-response";
 import { getHaHistory, getHaSummary } from "server/ha-summary";
 import type { TestType } from "shared/types";
 
 type Reading = { value_ppm: number; created_at: string };
+type HistoryRow = Record<string, unknown> & {
+  record_type: "addition" | "reading";
+  id: number;
+  created_at: string;
+};
+
+const accessTeamDomain = "access.example.test";
+const accessAudience = "test-audience";
+const accessIssuer = `https://${accessTeamDomain}`;
+const accessJwksUrl = `https://${accessTeamDomain}/cdn-cgi/access/certs`;
+const cacheControl = "private, no-store";
+
+let privateKey: CryptoKey;
+let originalFetch: typeof fetch;
+
+beforeAll(async () => {
+  const keyPair = await generateKeyPair("RS256");
+  privateKey = keyPair.privateKey;
+  const publicJwk = await exportJWK(keyPair.publicKey);
+  publicJwk.kid = "test-key";
+  publicJwk.alg = "RS256";
+  originalFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url === accessJwksUrl) return Response.json({ keys: [publicJwk] });
+    return originalFetch(input, init);
+  });
+});
+
+afterAll(() => vi.unstubAllGlobals());
 
 function createDb(
   readings: Partial<Record<TestType, { latest: Reading; tested_at: string }>> = {},
@@ -37,18 +68,10 @@ function createDb(
   } as unknown as D1Database;
 }
 
-type HistoryRow = Record<string, unknown> & {
-  record_type: "addition" | "reading";
-  id: number;
-  created_at: string;
-};
-
 function createHistoryDb(history: HistoryRow[]) {
   return {
     prepare(query: string) {
-      if (!query.includes("WITH history")) {
-        throw new Error("unexpected history query");
-      }
+      if (!query.includes("WITH history")) throw new Error("unexpected history query");
       let values: unknown[] = [];
       return {
         bind(...bound: unknown[]) {
@@ -94,6 +117,41 @@ function createHistoryDb(history: HistoryRow[]) {
       };
     },
   } as unknown as D1Database;
+}
+
+async function createAccessToken({
+  audience = accessAudience,
+  issuer = accessIssuer,
+  expirationTime = "1h",
+  notBefore,
+  signingKey = privateKey,
+}: {
+  audience?: string;
+  issuer?: string;
+  expirationTime?: string | number;
+  notBefore?: string | number;
+  signingKey?: CryptoKey;
+} = {}) {
+  const token = new SignJWT()
+    .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+    .setAudience(audience)
+    .setIssuer(issuer)
+    .setIssuedAt()
+    .setExpirationTime(expirationTime);
+  if (notBefore !== undefined) token.setNotBefore(notBefore);
+  return token.sign(signingKey);
+}
+
+async function accessHeaders(options?: Parameters<typeof createAccessToken>[0]) {
+  return { "Cf-Access-Jwt-Assertion": await createAccessToken(options) };
+}
+
+function accessEnv(database: D1Database) {
+  return {
+    DB: database,
+    ACCESS_TEAM_DOMAIN: accessTeamDomain,
+    ACCESS_AUD: accessAudience,
+  };
 }
 
 const db = createDb(
@@ -156,9 +214,6 @@ const historyDb = createHistoryDb([
   },
 ]);
 
-const cacheControl = "private, no-store";
-const authHeaders = { Authorization: "Bearer test-token" };
-
 describe("HA summary", () => {
   it("returns latest values and cadence states using before readings as the test time", async () => {
     const summary = await getHaSummary(db, new Date("2026-02-15T10:05:00Z"));
@@ -184,41 +239,12 @@ describe("HA summary", () => {
     ]);
   });
 
-  it("rejects missing and unset bearer tokens without allowing responses to be cached", async () => {
-    const missing = await loader({
-      request: new Request("https://example.test/api/ha/summary"),
-      context: { cloudflare: { env: { DB: db, HA_SUMMARY_TOKEN: "test-token" } } },
-    });
-    const unset = await loader({
-      request: new Request("https://example.test/api/ha/summary", {
-        headers: { Authorization: "Bearer undefined" },
-      }),
-      context: {
-        cloudflare: {
-          env: { DB: db, HA_SUMMARY_TOKEN: undefined as unknown as string },
-        },
-      },
-    });
-    const empty = await loader({
-      request: new Request("https://example.test/api/ha/summary", {
-        headers: { Authorization: "Bearer " },
-      }),
-      context: { cloudflare: { env: { DB: db, HA_SUMMARY_TOKEN: "" } } },
-    });
-
-    expect(missing.status).toBe(401);
-    expect(missing.headers.get("WWW-Authenticate")).toBe("Bearer");
-    expect(missing.headers.get("Cache-Control")).toBe(cacheControl);
-    expect(unset.status).toBe(401);
-    expect(unset.headers.get("Cache-Control")).toBe(cacheControl);
-    expect(empty.status).toBe(401);
-    expect(empty.headers.get("Cache-Control")).toBe(cacheControl);
-  });
-
-  it("accepts the configured bearer token and does not cache the summary", async () => {
+  it("accepts a valid Access JWT and does not cache the summary", async () => {
     const response = await loader({
-      request: new Request("https://example.test/api/ha/summary", { headers: authHeaders }),
-      context: { cloudflare: { env: { DB: db, HA_SUMMARY_TOKEN: "test-token" } } },
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: await accessHeaders(),
+      }),
+      context: { cloudflare: { env: accessEnv(db) } },
     });
 
     expect(response.status).toBe(200);
@@ -228,15 +254,62 @@ describe("HA summary", () => {
     });
   });
 
+  it("rejects missing Access headers and missing config without caching", async () => {
+    const missingHeader = await loader({
+      request: new Request("https://example.test/api/ha/summary"),
+      context: { cloudflare: { env: accessEnv(db) } },
+    });
+    const missingTeam = await loader({
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: await accessHeaders(),
+      }),
+      context: { cloudflare: { env: { ...accessEnv(db), ACCESS_TEAM_DOMAIN: "" } } },
+    });
+    const missingAudience = await loader({
+      request: new Request("https://example.test/api/ha/summary", {
+        headers: await accessHeaders(),
+      }),
+      context: { cloudflare: { env: { ...accessEnv(db), ACCESS_AUD: "" } } },
+    });
+
+    for (const response of [missingHeader, missingTeam, missingAudience]) {
+      expect(response.status).toBe(401);
+      expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+    }
+  });
+
+  it("rejects wrong audience, issuer, expiry, not-before, and signature without caching", async () => {
+    const wrongKey = await generateKeyPair("RS256");
+    const tokens = await Promise.all([
+      createAccessToken({ audience: "wrong-audience" }),
+      createAccessToken({ issuer: "https://wrong.example.test" }),
+      createAccessToken({ expirationTime: Math.floor(Date.now() / 1000) - 60 }),
+      createAccessToken({ notBefore: Math.floor(Date.now() / 1000) + 60 }),
+      createAccessToken({ signingKey: wrongKey.privateKey }),
+    ]);
+
+    const responses = await Promise.all(
+      tokens.map((token) =>
+        loader({
+          request: new Request("https://example.test/api/ha/summary", {
+            headers: { "Cf-Access-Jwt-Assertion": token },
+          }),
+          context: { cloudflare: { env: accessEnv(db) } },
+        })
+      )
+    );
+
+    for (const response of responses) {
+      expect(response.status).toBe(401);
+      expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+    }
+  });
+
   it("paginates equal-timestamp additions and readings without skipping or duplicating", async () => {
     const first = await getHaHistory(historyDb, { since: null, cursor: null, limit: 1 });
     const second = await getHaHistory(historyDb, {
       since: null,
-      cursor: {
-        created_at: "2026-01-01 10:00:00",
-        record_type: "addition",
-        id: 1,
-      },
+      cursor: { created_at: "2026-01-01 10:00:00", record_type: "addition", id: 1 },
       limit: 1,
     });
 
@@ -259,11 +332,9 @@ describe("HA summary", () => {
     const response = await loader({
       request: new Request(
         "https://example.test/api/ha/summary?history=1&since=2026-01-02T00:00:00Z&limit=2",
-        { headers: authHeaders }
+        { headers: await accessHeaders() }
       ),
-      context: {
-        cloudflare: { env: { DB: historyDb, HA_SUMMARY_TOKEN: "test-token" } },
-      },
+      context: { cloudflare: { env: accessEnv(historyDb) } },
     });
 
     expect(history.history).toEqual([
@@ -289,9 +360,9 @@ describe("HA summary", () => {
   ])("rejects malformed history query %s without caching it", async (query) => {
     const response = await loader({
       request: new Request(`https://example.test/api/ha/summary?${query}`, {
-        headers: authHeaders,
+        headers: await accessHeaders(),
       }),
-      context: { cloudflare: { env: { DB: historyDb, HA_SUMMARY_TOKEN: "test-token" } } },
+      context: { cloudflare: { env: accessEnv(historyDb) } },
     });
 
     expect(response.status).toBe(400);
@@ -322,9 +393,9 @@ describe("HA summary", () => {
     } as unknown as D1Database;
     const response = await loader({
       request: new Request("https://example.test/api/ha/summary?history=1", {
-        headers: authHeaders,
+        headers: await accessHeaders(),
       }),
-      context: { cloudflare: { env: { DB: failingDb, HA_SUMMARY_TOKEN: "test-token" } } },
+      context: { cloudflare: { env: accessEnv(failingDb) } },
     });
     const body = await response.json();
 

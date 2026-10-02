@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import {
   DEFAULT_HISTORY_LIMIT,
   getHaHistory,
@@ -8,6 +8,7 @@ import {
 } from "server/ha-summary";
 
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store" };
+const jwksByTeamDomain = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 type LoaderArgs = {
   request: Request;
@@ -37,13 +38,31 @@ function isValidSqliteUtcTimestamp(value: string): boolean {
   return Number(hour) < 24 && Number(minute) < 60 && Number(second) < 60;
 }
 
-function hasValidBearerToken(authorization: string | null, token: string): boolean {
-  const encoder = new TextEncoder();
-  const supplied = encoder.encode(authorization ?? "");
-  const expected = encoder.encode(`Bearer ${token}`);
-  return supplied.byteLength === expected.byteLength
-    ? timingSafeEqual(supplied, expected)
-    : !timingSafeEqual(supplied, supplied);
+function getJwks(teamDomain: string) {
+  let jwks = jwksByTeamDomain.get(teamDomain);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`https://${teamDomain}/cdn-cgi/access/certs`));
+    jwksByTeamDomain.set(teamDomain, jwks);
+  }
+  return jwks;
+}
+
+async function hasValidAccessJwt(request: Request, env: Env): Promise<boolean> {
+  const teamDomain = env.ACCESS_TEAM_DOMAIN?.trim();
+  const audience = env.ACCESS_AUD?.trim();
+  const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
+  if (!teamDomain || !audience || !assertion) return false;
+
+  try {
+    await jwtVerify(assertion, getJwks(teamDomain), {
+      algorithms: ["RS256"],
+      audience,
+      issuer: `https://${teamDomain}`,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parseSince(value: string | null): string | null {
@@ -87,10 +106,10 @@ function parseLimit(value: string | null): number {
 
 export async function loader({ request, context }: LoaderArgs) {
   const { env } = context.cloudflare;
-  if (!env.HA_SUMMARY_TOKEN || !hasValidBearerToken(request.headers.get("Authorization"), env.HA_SUMMARY_TOKEN)) {
+  if (!(await hasValidAccessJwt(request, env))) {
     return new Response("Unauthorized", {
       status: 401,
-      headers: { ...NO_STORE_HEADERS, "WWW-Authenticate": "Bearer" },
+      headers: NO_STORE_HEADERS,
     });
   }
 

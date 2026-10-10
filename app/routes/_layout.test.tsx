@@ -10,7 +10,11 @@ import {
   ozToTablespoons,
   TEST_ORDER,
   formatPhValue,
+  fromOz,
+  toOz,
 } from "shared/chemistry";
+import type { AmountUnit, DosingRecommendation } from "shared/chemistry";
+import { isAdditionInput, parseAdditionInput, parseSessionId } from "shared/additions";
 import { TEST_LABELS, TEST_RANGES, TEST_COLORS, TEST_INSTRUCTIONS } from "shared/types";
 import type { TestType } from "shared/types";
 import { StepDots } from "~/components/StepDots";
@@ -115,11 +119,13 @@ interface WizardState {
       after?: { ppm: number; drops?: number; sampleSize?: number };
     }
   >;
-  recommendations: Record<string, { chemical: string; amount: string; reason: string }[]>;
+  recommendations: Record<string, DosingRecommendation[]>;
   phSkipped: boolean;
   phSkippedReason: string | null;
   bromineValue: number | null;
   appliedChemicals: Record<string, boolean>;
+  additions: { chemical: string; amountOz: number }[];
+  recommendationAmounts: Record<string, { value: string; unit: AmountUnit }>;
 }
 
 function makeInitialState(suggestedTests: TestType[]): WizardState {
@@ -134,6 +140,8 @@ function makeInitialState(suggestedTests: TestType[]): WizardState {
     phSkippedReason: null,
     bromineValue: null,
     appliedChemicals: {},
+    additions: [],
+    recommendationAmounts: {},
   };
 }
 
@@ -179,11 +187,35 @@ export async function action({ request, context }: Route.ActionArgs) {
       return { ok: true };
     }
     case "saveAddition": {
-      const sessionId = Number(formData.get("sessionId"));
-      const chemical = formData.get("chemical") as string;
-      const amountOz = Number(formData.get("amountOz"));
-      await addChemicalAddition(env.DB, sessionId, chemical, amountOz);
-      return { ok: true };
+      const sessionId = parseSessionId(Number(formData.get("sessionId")));
+      const addition = parseAdditionInput({
+        chemical: formData.get("chemical"),
+        amountOz: Number(formData.get("amountOz")),
+      });
+      if (typeof sessionId !== "number") return sessionId;
+      if (!isAdditionInput(addition)) return addition;
+      await addChemicalAddition(env.DB, sessionId, addition.chemical, addition.amountOz);
+      return { ok: true, additions: [addition] };
+    }
+    case "saveAdditions": {
+      const sessionId = parseSessionId(Number(formData.get("sessionId")));
+      if (typeof sessionId !== "number") return sessionId;
+      const rawAdditions = formData.get("additions");
+      let additions: unknown;
+      try {
+        additions = typeof rawAdditions === "string" ? JSON.parse(rawAdditions) : null;
+      } catch {
+        return { error: "Invalid additions" };
+      }
+      if (!Array.isArray(additions)) return { error: "Invalid additions" };
+      const parsed = additions.map(parseAdditionInput);
+      const invalid = parsed.find((addition) => !isAdditionInput(addition));
+      if (invalid && !isAdditionInput(invalid)) return invalid;
+      const validAdditions = parsed as { chemical: string; amountOz: number }[];
+      for (const addition of validAdditions) {
+        await addChemicalAddition(env.DB, sessionId, addition.chemical, addition.amountOz);
+      }
+      return { ok: true, additions: validAdditions };
     }
     case "completeSession": {
       const sessionId = Number(formData.get("sessionId"));
@@ -198,12 +230,18 @@ export async function action({ request, context }: Route.ActionArgs) {
 export default function TestWizard() {
   const { suggestedTests, recentReadings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const additionsFetcher = useFetcher();
   const [state, setState] = useState<WizardState>(() => {
     if (typeof window === "undefined") return makeInitialState(suggestedTests);
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved) as WizardState;
+        const parsed = JSON.parse(saved) as WizardState;
+        return {
+          ...parsed,
+          additions: parsed.additions || [],
+          recommendationAmounts: parsed.recommendationAmounts || {},
+        };
       } catch {
         return makeInitialState(suggestedTests);
       }
@@ -217,6 +255,12 @@ export default function TestWizard() {
   const [phIndex, setPhIndex] = useState(PH_DEFAULT_INDEX);
   const [dropCount, setDropCount] = useState(0);
   const [infoExpanded, setInfoExpanded] = useState(true);
+  const [showAdditionForm, setShowAdditionForm] = useState(false);
+  const [customChemical, setCustomChemical] = useState("7.5% Bleach");
+  const [customOtherChemical, setCustomOtherChemical] = useState("");
+  const [customAmount, setCustomAmount] = useState("");
+  const [customUnit, setCustomUnit] = useState<AmountUnit>("oz");
+  const [additionError, setAdditionError] = useState<string | null>(null);
 
   // Check for resume on mount
   useEffect(() => {
@@ -252,6 +296,21 @@ export default function TestWizard() {
       }));
     }
   }, [fetcher.data, state.sessionId]);
+
+  useEffect(() => {
+    const data = additionsFetcher.data as
+      | { error?: string; additions?: { chemical: string; amountOz: number }[] }
+      | undefined;
+    if (!data) return;
+    if (data.error) {
+      setAdditionError(data.error);
+      return;
+    }
+    if (data.additions) {
+      setState((prev) => ({ ...prev, additions: [...prev.additions, ...data.additions!] }));
+      setAdditionError(null);
+    }
+  }, [additionsFetcher.data]);
 
   const update = useCallback((partial: Partial<WizardState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -421,22 +480,18 @@ export default function TestWizard() {
     if (!currentTest || !state.sessionId) return;
     const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
     const recs = state.recommendations[recKey];
-    if (recs && recs.length > 0) {
-      // Record the first recommendation's addition
-      const rec = recs[0];
-      // Extract oz from amount string (e.g., "6.6 oz (13.2 tbsp)")
-      const ozMatch = rec.amount.match(/([\d.]+)\s*oz/);
-      if (ozMatch) {
-        fetcher.submit(
-          {
-            intent: "saveAddition",
-            sessionId: String(state.sessionId),
-            chemical: rec.chemical,
-            amountOz: ozMatch[1],
-          },
-          { method: "post" }
-        );
-      }
+    const additions = recs.flatMap((rec, index) => {
+      if (rec.amountOz === undefined || !rec.unit) return [];
+      const input = getRecommendationInput(recKey, index, rec);
+      const enteredAmount = Number(input.value);
+      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return [];
+      return [{ chemical: rec.chemical, amountOz: toOz(enteredAmount, input.unit) }];
+    });
+    if (additions.length > 0) {
+      additionsFetcher.submit(
+        { intent: "saveAdditions", sessionId: String(state.sessionId), additions: JSON.stringify(additions) },
+        { method: "post" }
+      );
     }
     update({
       appliedChemicals: { ...state.appliedChemicals, [recKey]: true },
@@ -507,6 +562,93 @@ export default function TestWizard() {
     );
     clearWizard();
   };
+
+  const getRecommendationInput = (
+    recKey: string,
+    index: number,
+    rec: DosingRecommendation
+  ) => {
+    const key = `${recKey}-${index}`;
+    return state.recommendationAmounts[key] || {
+      value: String(fromOz(rec.amountOz!, rec.unit!)),
+      unit: rec.unit!,
+    };
+  };
+
+  const updateRecommendationInput = (
+    recKey: string,
+    index: number,
+    rec: DosingRecommendation,
+    partial: Partial<{ value: string; unit: AmountUnit }>
+  ) => {
+    const key = `${recKey}-${index}`;
+    const current = getRecommendationInput(recKey, index, rec);
+    setState((prev) => ({
+      ...prev,
+      recommendationAmounts: {
+        ...prev.recommendationAmounts,
+        [key]: { ...current, ...partial },
+      },
+    }));
+  };
+
+  const handleSaveCustomAddition = () => {
+    if (!state.sessionId) return;
+    const chemical = customChemical === "Other" ? customOtherChemical : customChemical;
+    const amount = Number(customAmount);
+    if (!chemical.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setAdditionError("Enter a chemical and an amount greater than zero.");
+      return;
+    }
+    additionsFetcher.submit(
+      {
+        intent: "saveAddition",
+        sessionId: String(state.sessionId),
+        chemical,
+        amountOz: String(toOz(amount, customUnit)),
+      },
+      { method: "post" }
+    );
+    setCustomAmount("");
+    setCustomOtherChemical("");
+    setShowAdditionForm(false);
+  };
+
+  const additionForm = (
+    <>
+      {showAdditionForm ? (
+        <div className={styles.additionForm}>
+          <select className={styles.additionSelect} value={customChemical} onChange={(e) => setCustomChemical(e.target.value)}>
+            <option>7.5% Bleach</option>
+            <option>Baking Soda</option>
+            <option>Borax</option>
+            <option>Dry Acid (sodium bisulfate)</option>
+            <option>Calcium Chloride</option>
+            <option>Sodium Bromide</option>
+            <option>Other</option>
+          </select>
+          {customChemical === "Other" && (
+            <input className={styles.additionInput} placeholder="Chemical name" value={customOtherChemical} onChange={(e) => setCustomOtherChemical(e.target.value)} />
+          )}
+          <div className={styles.additionAmountRow}>
+            <input type="number" inputMode="decimal" className={styles.additionInput} placeholder="Amount" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} />
+            <div className={styles.unitToggle}>
+              {(["oz", "tbsp", "tsp"] as AmountUnit[]).map((unit) => (
+                <button key={unit} className={`${styles.unitBtn} ${customUnit === unit ? styles.unitActive : ""}`} onClick={() => setCustomUnit(unit)}>{unit}</button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.btnRow}>
+            <button className={styles.btnPrimary} onClick={handleSaveCustomAddition}>Save addition</button>
+            <button className={styles.btnSecondary} onClick={() => setShowAdditionForm(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button className={styles.addChemicalButton} onClick={() => setShowAdditionForm(true)}>+ Add chemical</button>
+      )}
+      {additionError && <div className={styles.additionError}>{additionError}</div>}
+    </>
+  );
 
   // Compute conversion display (PPM mode only; drops mode shows inline in slider)
   let conversionDisplay = "";
@@ -649,6 +791,17 @@ export default function TestWizard() {
             );
           })}
         </div>
+        {state.additions.length > 0 && (
+          <div className={styles.additionsList}>
+            <div className={styles.summaryLabel}>Additions</div>
+            {state.additions.map((addition, index) => (
+              <div key={`${addition.chemical}-${index}`} className={styles.additionSummary}>
+                {addition.chemical} · {addition.amountOz} oz ({fromOz(addition.amountOz, "tbsp")} tbsp)
+              </div>
+            ))}
+          </div>
+        )}
+        {additionForm}
         <button className={styles.btnPrimary} onClick={handleComplete}>
           Done
         </button>
@@ -858,16 +1011,48 @@ export default function TestWizard() {
               </div>
             )}
             <div className={styles.recList}>
-              {recs.map((rec, i) => (
+              {recs.map((rec, i) => {
+                const input = rec.amountOz !== undefined && rec.unit
+                  ? getRecommendationInput(recKey, i, rec)
+                  : null;
+                return (
                 <div key={i} className={styles.recCard}>
                   <div className={styles.recChemical}>{rec.chemical}</div>
                   <div className={styles.recAmount}>{rec.amount}</div>
                   <div className={styles.recReason}>{rec.reason}</div>
+                  {input && (
+                    <div className={styles.recommendationAmount}>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={styles.additionInput}
+                        aria-label={`${rec.chemical} amount`}
+                        value={input.value}
+                        onChange={(e) => updateRecommendationInput(recKey, i, rec, { value: e.target.value })}
+                      />
+                      <div className={styles.unitToggle}>
+                        {(["oz", "tbsp", "tsp"] as AmountUnit[]).map((unit) => (
+                          <button
+                            key={unit}
+                            className={`${styles.unitBtn} ${input.unit === unit ? styles.unitActive : ""}`}
+                            onClick={() => updateRecommendationInput(recKey, i, rec, {
+                              value: String(fromOz(toOz(Number(input.value) || 0, input.unit), unit)),
+                              unit,
+                            })}
+                          >
+                            {unit}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
+        {additionForm}
         <div className={styles.btnRow}>
           {isInRange ? (
             <button className={styles.btnPrimary} onClick={advanceToNextTest}>

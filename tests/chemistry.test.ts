@@ -11,6 +11,8 @@ import {
   CALCIUM_CHLORIDE_OZ_PER_10PPM,
   SODIUM_BROMIDE_OZ,
   TEST_ORDER,
+  fromOz,
+  toOz,
 } from "shared/chemistry";
 
 describe("dropsToPpm", () => {
@@ -121,6 +123,8 @@ describe("getRecommendations", () => {
     expect(recs).toHaveLength(1);
     expect(recs[0].chemical).toBe("7.5% Bleach");
     expect(recs[0].amount).toContain("6.6 oz");
+    expect(recs[0].amountOz).toBe(6.6);
+    expect(recs[0].unit).toBe("oz");
   });
 
   it("returns nothing when bromine is in range", () => {
@@ -139,6 +143,7 @@ describe("getRecommendations", () => {
     const recs = getRecommendations("ta", 80);
     expect(recs).toHaveLength(1);
     expect(recs[0].chemical).toBe("Aeration");
+    expect(recs[0].amountOz).toBeUndefined();
   });
 
   it("returns nothing when TA is in range", () => {
@@ -177,6 +182,37 @@ describe("getRecommendations", () => {
 
   it("returns nothing for high calcium (no chemical to lower it)", () => {
     expect(getRecommendations("calcium", 500)).toHaveLength(0);
+  });
+
+  it("provides structured amounts matching recommendation display units", () => {
+    const cases = [
+      getRecommendations("bromine", 2)[0],
+      getRecommendations("ta", 40)[0],
+      getRecommendations("ph", 7.3)[0],
+      getRecommendations("ph", 8.0)[0],
+      getRecommendations("calcium", 110)[0],
+    ];
+
+    expect(cases[0].amountOz).toBe(6.6);
+    expect(cases[1].amountOz).toBe(0.75);
+    expect(cases[2].amountOz).toBe(1.5);
+    for (const rec of cases) {
+      expect(rec.amountOz).toBeDefined();
+      expect(rec.unit).toBeDefined();
+      expect(Number(rec.amount.match(/^[\d.]+/)?.[0])).toBe(
+        fromOz(rec.amountOz!, rec.unit!)
+      );
+    }
+  });
+});
+
+describe("dose unit conversion", () => {
+  it("converts and round-trips amounts to two decimal places", () => {
+    expect(toOz(3, "tbsp")).toBe(1.5);
+    expect(toOz(9, "tsp")).toBe(1.5);
+    expect(fromOz(1.5, "tbsp")).toBe(3);
+    expect(fromOz(1.5, "tsp")).toBe(9);
+    expect(toOz(fromOz(1.23, "tbsp"), "tbsp")).toBe(1.23);
   });
 });
 

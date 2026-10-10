@@ -97,10 +97,24 @@ export function ozToTeaspoons(oz: number): number {
   return Math.round(oz * 6 * 10) / 10; // 1 oz = 6 tsp
 }
 
+export type AmountUnit = "oz" | "tbsp" | "tsp";
+
+export function toOz(value: number, unit: AmountUnit): number {
+  const ounces = unit === "oz" ? value : unit === "tbsp" ? value / 2 : value / 6;
+  return Math.round(ounces * 100) / 100;
+}
+
+export function fromOz(oz: number, unit: AmountUnit): number {
+  const value = unit === "oz" ? oz : unit === "tbsp" ? oz * 2 : oz * 6;
+  return Math.round(value * 100) / 100;
+}
+
 export interface DosingRecommendation {
   chemical: string;
   amount: string;
   reason: string;
+  amountOz?: number;
+  unit?: "oz" | "tbsp";
 }
 
 export function getRecommendations(
@@ -116,6 +130,8 @@ export function getRecommendations(
           chemical: "7.5% Bleach",
           amount: `${BLEACH_SHOCK_OZ} oz (${ozToTablespoons(BLEACH_SHOCK_OZ)} tbsp)`,
           reason: `Bromine is low (${currentValue} ppm). Shock with bleach.`,
+          amountOz: BLEACH_SHOCK_OZ,
+          unit: "oz",
         });
       }
       break;
@@ -124,11 +140,14 @@ export function getRecommendations(
       if (currentValue < 50) {
         const deficit = 50 - currentValue;
         const units = deficit / 10;
+        const oz = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 100) / 100;
         const tbsp = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 2 * 10) / 10;
         recs.push({
           chemical: "Baking Soda",
           amount: `${tbsp} tbsp (1 tbsp ≈ +6 ppm TA)`,
           reason: `TA is low (${currentValue} ppm). Raise to 50 ppm.`,
+          amountOz: oz,
+          unit: "tbsp",
         });
       } else if (currentValue > 70) {
         recs.push({
@@ -148,15 +167,20 @@ export function getRecommendations(
           chemical: "Dry Acid (sodium bisulfate)",
           amount: `${oz} oz (${ozToTeaspoons(oz)} tsp)`,
           reason: `pH is high (${formatPhValue(currentValue)}). Lower to ~7.6.`,
+          amountOz: oz,
+          unit: "oz",
         });
       } else if (currentValue < 7.4) {
         const deficit = 7.6 - currentValue;
         const units = deficit / 0.2;
+        const oz = Math.round(units * BORAX_OZ_PER_02PH * 100) / 100;
         const tbsp = Math.round(units * BORAX_OZ_PER_02PH * 2 * 10) / 10;
         recs.push({
           chemical: "Borax",
           amount: `${tbsp} tbsp (1 tbsp ≈ +0.1 pH)`,
           reason: `pH is low (${formatPhValue(currentValue)}). Add borax, or aerate (run jets with cover open).`,
+          amountOz: oz,
+          unit: "tbsp",
         });
       }
       break;
@@ -170,6 +194,8 @@ export function getRecommendations(
           chemical: "Calcium Chloride",
           amount: `${oz} oz (${ozToTeaspoons(oz)} tsp)`,
           reason: `Calcium is low (${currentValue} ppm). Raise to 130 ppm.`,
+          amountOz: oz,
+          unit: "oz",
         });
       }
       break;

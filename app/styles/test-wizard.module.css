@@ -324,6 +324,96 @@
   color: var(--color-text-secondary);
 }
 
+.recommendationAmount,
+.additionAmountRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.additionForm,
+.additionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.additionInput,
+.additionSelect {
+  min-height: 48px;
+  padding: 10px 12px;
+  font-size: 18px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.additionInput {
+  width: 100%;
+  min-width: 0;
+}
+
+.additionSelect {
+  width: 100%;
+}
+
+.unitToggle {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.unitBtn {
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.unitBtn:last-child {
+  border-right: none;
+}
+
+.unitActive {
+  color: white;
+  background: var(--color-blue);
+}
+
+.addChemicalButton {
+  align-self: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-blue);
+  background: var(--color-surface);
+  border: 1px solid var(--color-blue);
+  border-radius: var(--radius-sm);
+}
+
+.additionError {
+  color: var(--color-red);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.additionSummary {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+}
+
 /* pH Slider */
 .phSlider {
   width: 100%;

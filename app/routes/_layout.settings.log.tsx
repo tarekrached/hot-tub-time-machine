@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/_layout.settings.log";
 import { getTimeline } from "server/db";
-import { timeSinceLabel, formatPhValue } from "shared/chemistry";
+import { timeSinceLabel, formatPhValue, fromOz } from "shared/chemistry";
 import {
   TEST_LABELS,
   MAINTENANCE_LABELS,
@@ -109,6 +109,15 @@ export default function LogPage() {
                     );
                   })}
                 </div>
+                {s.additions.length > 0 && (
+                  <div className={styles.entryNotes}>
+                    {s.additions.map((addition) => (
+                      <div key={addition.id}>
+                        {addition.chemical} · {addition.amount_oz} oz ({fromOz(addition.amount_oz, "tbsp")} tbsp)
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );

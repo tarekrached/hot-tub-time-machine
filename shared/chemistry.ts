@@ -140,13 +140,12 @@ export function getRecommendations(
       if (currentValue < 50) {
         const deficit = 50 - currentValue;
         const units = deficit / 10;
-        const oz = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 100) / 100;
         const tbsp = Math.round(units * BAKING_SODA_OZ_PER_10PPM * 2 * 10) / 10;
         recs.push({
           chemical: "Baking Soda",
           amount: `${tbsp} tbsp (1 tbsp ≈ +6 ppm TA)`,
           reason: `TA is low (${currentValue} ppm). Raise to 50 ppm.`,
-          amountOz: oz,
+          amountOz: tbsp / 2,
           unit: "tbsp",
         });
       } else if (currentValue > 70) {
@@ -173,13 +172,12 @@ export function getRecommendations(
       } else if (currentValue < 7.4) {
         const deficit = 7.6 - currentValue;
         const units = deficit / 0.2;
-        const oz = Math.round(units * BORAX_OZ_PER_02PH * 100) / 100;
         const tbsp = Math.round(units * BORAX_OZ_PER_02PH * 2 * 10) / 10;
         recs.push({
           chemical: "Borax",
           amount: `${tbsp} tbsp (1 tbsp ≈ +0.1 pH)`,
           reason: `pH is low (${formatPhValue(currentValue)}). Add borax, or aerate (run jets with cover open).`,
-          amountOz: oz,
+          amountOz: tbsp / 2,
           unit: "tbsp",
         });
       }

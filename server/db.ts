@@ -155,6 +155,22 @@ export async function addChemicalAddition(
   return result.meta.last_row_id;
 }
 
+export async function addChemicalAdditions(
+  db: D1Database,
+  sessionId: number,
+  items: { chemical: string; amountOz: number }[]
+): Promise<void> {
+  await db.batch(
+    items.map(({ chemical, amountOz }) =>
+      db
+        .prepare(
+          "INSERT INTO chemical_additions (session_id, chemical, amount_oz) VALUES (?, ?, ?)"
+        )
+        .bind(sessionId, chemical, amountOz)
+    )
+  );
+}
+
 // --- Maintenance ---
 
 export async function addMaintenanceEvent(

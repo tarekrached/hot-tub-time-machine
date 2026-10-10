@@ -204,6 +204,17 @@ describe("getRecommendations", () => {
       );
     }
   });
+
+  it("prefills tbsp recommendations from their displayed rounded amount", () => {
+    for (let ta = 0; ta < 50; ta += 1) {
+      const rec = getRecommendations("ta", ta)[0];
+      expect(fromOz(rec.amountOz!, rec.unit!)).toBe(Number(rec.amount.match(/^[\d.]+/)?.[0]));
+    }
+    for (const ph of [6.8, 7.0, 7.1, 7.2, 7.3]) {
+      const rec = getRecommendations("ph", ph)[0];
+      expect(fromOz(rec.amountOz!, rec.unit!)).toBe(Number(rec.amount.match(/^[\d.]+/)?.[0]));
+    }
+  });
 });
 
 describe("dose unit conversion", () => {

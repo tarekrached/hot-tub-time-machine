@@ -23,6 +23,7 @@ import {
   createSession,
   addReading,
   addChemicalAddition,
+  addChemicalAdditions,
   completeSession,
   getRecentReadingsByTestType,
 } from "server/db";
@@ -194,8 +195,12 @@ export async function action({ request, context }: Route.ActionArgs) {
       });
       if (typeof sessionId !== "number") return sessionId;
       if (!isAdditionInput(addition)) return addition;
-      await addChemicalAddition(env.DB, sessionId, addition.chemical, addition.amountOz);
-      return { ok: true, additions: [addition] };
+      try {
+        await addChemicalAddition(env.DB, sessionId, addition.chemical, addition.amountOz);
+        return { ok: true, additions: [addition] };
+      } catch {
+        return { error: "Unable to save addition. Please try again." };
+      }
     }
     case "saveAdditions": {
       const sessionId = parseSessionId(Number(formData.get("sessionId")));
@@ -212,10 +217,12 @@ export async function action({ request, context }: Route.ActionArgs) {
       const invalid = parsed.find((addition) => !isAdditionInput(addition));
       if (invalid && !isAdditionInput(invalid)) return invalid;
       const validAdditions = parsed as { chemical: string; amountOz: number }[];
-      for (const addition of validAdditions) {
-        await addChemicalAddition(env.DB, sessionId, addition.chemical, addition.amountOz);
+      try {
+        await addChemicalAdditions(env.DB, sessionId, validAdditions);
+        return { ok: true, additions: validAdditions };
+      } catch {
+        return { error: "Unable to save additions. Please try again." };
       }
-      return { ok: true, additions: validAdditions };
     }
     case "completeSession": {
       const sessionId = Number(formData.get("sessionId"));
@@ -261,6 +268,9 @@ export default function TestWizard() {
   const [customAmount, setCustomAmount] = useState("");
   const [customUnit, setCustomUnit] = useState<AmountUnit>("oz");
   const [additionError, setAdditionError] = useState<string | null>(null);
+  const [pendingAdditionSave, setPendingAdditionSave] = useState<
+    { type: "recommendations"; recKey: string } | { type: "custom" } | null
+  >(null);
 
   // Check for resume on mount
   useEffect(() => {
@@ -304,11 +314,24 @@ export default function TestWizard() {
     if (!data) return;
     if (data.error) {
       setAdditionError(data.error);
+      setPendingAdditionSave(null);
       return;
     }
     if (data.additions) {
       setState((prev) => ({ ...prev, additions: [...prev.additions, ...data.additions!] }));
       setAdditionError(null);
+      if (pendingAdditionSave?.type === "recommendations") {
+        setState((prev) => ({
+          ...prev,
+          appliedChemicals: { ...prev.appliedChemicals, [pendingAdditionSave.recKey]: true },
+          step: "timer",
+        }));
+      } else if (pendingAdditionSave?.type === "custom") {
+        setCustomAmount("");
+        setCustomOtherChemical("");
+        setShowAdditionForm(false);
+      }
+      setPendingAdditionSave(null);
     }
   }, [additionsFetcher.data]);
 
@@ -477,26 +500,32 @@ export default function TestWizard() {
   };
 
   const handleApplyAndTimer = () => {
-    if (!currentTest || !state.sessionId) return;
+    if (!currentTest || !state.sessionId || additionsFetcher.state !== "idle") return;
     const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
-    const recs = state.recommendations[recKey];
+    const recs = state.recommendations[recKey] ?? [];
     const additions = recs.flatMap((rec, index) => {
       if (rec.amountOz === undefined || !rec.unit) return [];
       const input = getRecommendationInput(recKey, index, rec);
       const enteredAmount = Number(input.value);
-      if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return [];
-      return [{ chemical: rec.chemical, amountOz: toOz(enteredAmount, input.unit) }];
+      const amountOz = toOz(enteredAmount, input.unit);
+      if (!Number.isFinite(enteredAmount) || amountOz <= 0) return [];
+      return [{ chemical: rec.chemical, amountOz }];
     });
+    const invalidAddition = additions.map(parseAdditionInput).find((addition) => !isAdditionInput(addition));
+    if (invalidAddition && !isAdditionInput(invalidAddition)) {
+      setAdditionError(invalidAddition.error);
+      return;
+    }
+    setAdditionError(null);
     if (additions.length > 0) {
+      setPendingAdditionSave({ type: "recommendations", recKey });
       additionsFetcher.submit(
         { intent: "saveAdditions", sessionId: String(state.sessionId), additions: JSON.stringify(additions) },
         { method: "post" }
       );
+      return;
     }
-    update({
-      appliedChemicals: { ...state.appliedChemicals, [recKey]: true },
-      step: "timer",
-    });
+    update({ appliedChemicals: { ...state.appliedChemicals, [recKey]: true }, step: "timer" });
   };
 
   const handleTimerComplete = useCallback(() => {
@@ -593,25 +622,25 @@ export default function TestWizard() {
   };
 
   const handleSaveCustomAddition = () => {
-    if (!state.sessionId) return;
+    if (!state.sessionId || additionsFetcher.state !== "idle") return;
     const chemical = customChemical === "Other" ? customOtherChemical : customChemical;
     const amount = Number(customAmount);
-    if (!chemical.trim() || !Number.isFinite(amount) || amount <= 0) {
-      setAdditionError("Enter a chemical and an amount greater than zero.");
+    const addition = parseAdditionInput({ chemical, amountOz: toOz(amount, customUnit) });
+    if (!isAdditionInput(addition)) {
+      setAdditionError(addition.error);
       return;
     }
+    setAdditionError(null);
+    setPendingAdditionSave({ type: "custom" });
     additionsFetcher.submit(
       {
         intent: "saveAddition",
         sessionId: String(state.sessionId),
-        chemical,
-        amountOz: String(toOz(amount, customUnit)),
+        chemical: addition.chemical,
+        amountOz: String(addition.amountOz),
       },
       { method: "post" }
     );
-    setCustomAmount("");
-    setCustomOtherChemical("");
-    setShowAdditionForm(false);
   };
 
   const additionForm = (
@@ -639,8 +668,8 @@ export default function TestWizard() {
             </div>
           </div>
           <div className={styles.btnRow}>
-            <button className={styles.btnPrimary} onClick={handleSaveCustomAddition}>Save addition</button>
-            <button className={styles.btnSecondary} onClick={() => setShowAdditionForm(false)}>Cancel</button>
+            <button className={styles.btnPrimary} disabled={additionsFetcher.state !== "idle"} onClick={handleSaveCustomAddition}>Save addition</button>
+            <button className={styles.btnSecondary} disabled={additionsFetcher.state !== "idle"} onClick={() => setShowAdditionForm(false)}>Cancel</button>
           </div>
         </div>
       ) : (
@@ -1062,6 +1091,7 @@ export default function TestWizard() {
             <>
               <button
                 className={styles.btnPrimary}
+                disabled={additionsFetcher.state !== "idle"}
                 onClick={handleApplyAndTimer}
               >
                 Applied — Start Timer
@@ -1075,6 +1105,15 @@ export default function TestWizard() {
             </>
           )}
         </div>
+        {state.additions.length > 0 && (
+          <div className={styles.additionsList}>
+            {state.additions.map((addition, index) => (
+              <div key={`${addition.chemical}-${index}`} className={styles.additionSummary}>
+                {addition.chemical} · {addition.amountOz} oz
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

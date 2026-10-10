@@ -269,7 +269,7 @@ export default function TestWizard() {
   const [customUnit, setCustomUnit] = useState<AmountUnit>("oz");
   const [additionError, setAdditionError] = useState<string | null>(null);
   const [pendingAdditionSave, setPendingAdditionSave] = useState<
-    { type: "recommendations"; recKey: string } | { type: "custom" } | null
+    { type: "recommendations"; recKey: string; then: "timer" | "next" } | { type: "custom" } | null
   >(null);
 
   // Check for resume on mount
@@ -320,7 +320,9 @@ export default function TestWizard() {
     if (data.additions) {
       setState((prev) => ({ ...prev, additions: [...prev.additions, ...data.additions!] }));
       setAdditionError(null);
-      if (pendingAdditionSave?.type === "recommendations") {
+      if (pendingAdditionSave?.type === "recommendations" && pendingAdditionSave.then === "next") {
+        if (state.step === "recommendation") advanceToNextTest();
+      } else if (pendingAdditionSave?.type === "recommendations") {
         setState((prev) =>
           prev.step === "recommendation"
             ? {
@@ -503,7 +505,9 @@ export default function TestWizard() {
     setInputValue("");
   };
 
-  const handleApplyAndTimer = () => {
+  // Saves the entered doses, then starts the re-test timer ("timer") or moves
+  // on to the next test without re-testing ("next").
+  const handleApplied = (then: "timer" | "next") => {
     if (!currentTest || !state.sessionId || additionsFetcher.state !== "idle") return;
     const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
     const recs = state.recommendations[recKey] ?? [];
@@ -522,11 +526,15 @@ export default function TestWizard() {
     }
     setAdditionError(null);
     if (additions.length > 0) {
-      setPendingAdditionSave({ type: "recommendations", recKey });
+      setPendingAdditionSave({ type: "recommendations", recKey, then });
       additionsFetcher.submit(
         { intent: "saveAdditions", sessionId: String(state.sessionId), additions: JSON.stringify(additions) },
         { method: "post" }
       );
+      return;
+    }
+    if (then === "next") {
+      advanceToNextTest();
       return;
     }
     update({ appliedChemicals: { ...state.appliedChemicals, [recKey]: true }, step: "timer" });
@@ -1096,20 +1104,29 @@ export default function TestWizard() {
               <button
                 className={styles.btnPrimary}
                 disabled={additionsFetcher.state !== "idle"}
-                onClick={handleApplyAndTimer}
+                onClick={() => handleApplied("timer")}
               >
                 Applied — Start Timer
               </button>
               <button
                 className={styles.btnSecondary}
                 disabled={additionsFetcher.state !== "idle"}
-                onClick={advanceToNextTest}
+                onClick={() => handleApplied("next")}
               >
-                Skip Re-test
+                Applied — Skip Re-test
               </button>
             </>
           )}
         </div>
+        {!isInRange && (
+          <button
+            className={styles.btnLink}
+            disabled={additionsFetcher.state !== "idle"}
+            onClick={advanceToNextTest}
+          >
+            Didn't add anything
+          </button>
+        )}
         {state.additions.length > 0 && (
           <div className={styles.additionsList}>
             {state.additions.map((addition, index) => (

@@ -258,6 +258,18 @@
   cursor: not-allowed;
 }
 
+.btnLink {
+  display: block;
+  margin: 4px auto 0;
+  padding: 10px 16px;
+  min-height: 44px;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  background: none;
+  border: none;
+}
+
 .btnSecondary {
   padding: 10px 24px;
   font-size: 16px;

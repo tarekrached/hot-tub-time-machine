@@ -253,7 +253,9 @@
   min-width: 120px;
 }
 
-.btnPrimary:disabled {
+.btnPrimary:disabled,
+.btnSecondary:disabled,
+.btnLink:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

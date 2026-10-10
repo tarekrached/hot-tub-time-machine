@@ -321,11 +321,15 @@ export default function TestWizard() {
       setState((prev) => ({ ...prev, additions: [...prev.additions, ...data.additions!] }));
       setAdditionError(null);
       if (pendingAdditionSave?.type === "recommendations") {
-        setState((prev) => ({
-          ...prev,
-          appliedChemicals: { ...prev.appliedChemicals, [pendingAdditionSave.recKey]: true },
-          step: "timer",
-        }));
+        setState((prev) =>
+          prev.step === "recommendation"
+            ? {
+                ...prev,
+                appliedChemicals: { ...prev.appliedChemicals, [pendingAdditionSave.recKey]: true },
+                step: "timer",
+              }
+            : prev
+        );
       } else if (pendingAdditionSave?.type === "custom") {
         setCustomAmount("");
         setCustomOtherChemical("");
@@ -1098,6 +1102,7 @@ export default function TestWizard() {
               </button>
               <button
                 className={styles.btnSecondary}
+                disabled={additionsFetcher.state !== "idle"}
                 onClick={advanceToNextTest}
               >
                 Skip Re-test

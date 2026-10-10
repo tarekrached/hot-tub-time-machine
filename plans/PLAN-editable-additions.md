@@ -1,6 +1,6 @@
 # Plan: editable chemical-addition amounts in the test wizard
 
-Status: in progress (build cycle started 2026-10-09)
+Status: implemented and reviewed 2026-10-09 (APPROVE-WITH-NITS after one fix round); awaiting Tarek's review, not merged or deployed
 
 ## Why
 

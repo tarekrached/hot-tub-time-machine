@@ -80,6 +80,7 @@ INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(77
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(78,'2026-10-01 20:08:56','2026-10-01 20:15:07',NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(79,'2026-10-01 20:49:17',NULL,NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(80,'2026-10-01 20:52:00','2026-10-01 20:52:05',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(81,'2026-10-10 00:22:05','2026-10-10 00:34:07',NULL);
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(1,1,'bromine','before',1.25,NULL,NULL,'2025-06-25 10:01:00');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(2,1,'bromine','after',6.25,NULL,NULL,'2025-06-25 10:02:00');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(3,1,'ph','before',7.1,NULL,NULL,'2025-06-25 10:03:00');
@@ -278,9 +279,17 @@ INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(196,78,'ta','after',50,5,25,'2026-10-01 20:15:06');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(197,79,'ph','before',7.3,NULL,NULL,'2026-10-01 20:49:21');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(198,80,'ph','before',7.6,NULL,NULL,'2026-10-01 20:52:03');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(199,81,'ta','before',40,4,25,'2026-10-10 00:23:26');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(200,81,'ta','after',60,6,25,'2026-10-10 00:28:59');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(201,81,'bromine','before',7,14,25,'2026-10-10 00:31:21');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(202,81,'ph','before',7.3,NULL,NULL,'2026-10-10 00:32:08');
+INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(203,81,'ph','after',7.6,NULL,NULL,'2026-10-10 00:34:02');
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(2,35,'Baking Soda',0.9,'2026-03-05 21:21:21');
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(3,53,'Calcium Chloride',0.5,'2026-05-17 17:26:07');
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(4,58,'Dry Acid (sodium bisulfate)',1.4,'2026-07-05 02:30:30');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(5,81,'Baking Soda',1,'2026-10-10 00:28:00');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(6,81,'Borax',0.5,'2026-10-10 00:33:00');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(7,81,'Bromine tablet',0.7,'2026-10-10 00:40:00');
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(1,'drain_refill','2025-11-08 09:00:00',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(2,'filter_change','2026-02-01 09:00:00',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(3,'filter_change','2026-03-08 01:05:20',NULL);
@@ -289,7 +298,7 @@ INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(6,'filter_change','2026-07-05 02:16:45',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(7,'drain_refill','2026-07-05 02:17:01','Sodium bromide added');
 INSERT INTO "sqlite_sequence" ("name","seq") VALUES('d1_migrations',1);
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_sessions',80);
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_readings',198);
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('chemical_additions',4);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_sessions',81);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_readings',203);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('chemical_additions',7);
 INSERT INTO "sqlite_sequence" ("name","seq") VALUES('maintenance_events',7);

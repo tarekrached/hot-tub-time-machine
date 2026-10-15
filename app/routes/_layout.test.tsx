@@ -1131,7 +1131,7 @@ export default function TestWizard() {
           <div className={styles.additionsList}>
             {state.additions.map((addition, index) => (
               <div key={`${addition.chemical}-${index}`} className={styles.additionSummary}>
-                {addition.chemical} · {addition.amountOz} oz
+                {addition.chemical} · {addition.amountOz} oz ({fromOz(addition.amountOz, "tbsp")} tbsp)
               </div>
             ))}
           </div>

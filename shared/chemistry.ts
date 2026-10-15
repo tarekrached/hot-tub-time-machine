@@ -97,6 +97,11 @@ export function ozToTeaspoons(oz: number): number {
   return Math.round(oz * 6 * 10) / 10; // 1 oz = 6 tsp
 }
 
+// 1" bromine tablet (In The Swim Bromine Plus): typical weight, not measured.
+// The picker takes a tablet count and stores count × this in amount_oz.
+export const BROMINE_TABLET = "Bromine tablet";
+export const BROMINE_TABLET_OZ = 0.7;
+
 export type AmountUnit = "oz" | "tbsp" | "tsp";
 
 export function toOz(value: number, unit: AmountUnit): number {

@@ -12,6 +12,8 @@ import {
   formatPhValue,
   fromOz,
   toOz,
+  BROMINE_TABLET,
+  BROMINE_TABLET_OZ,
 } from "shared/chemistry";
 import type { AmountUnit, DosingRecommendation } from "shared/chemistry";
 import { isAdditionInput, parseAdditionInput, parseSessionId } from "shared/additions";
@@ -637,7 +639,11 @@ export default function TestWizard() {
     if (!state.sessionId || additionsFetcher.state !== "idle") return;
     const chemical = customChemical === "Other" ? customOtherChemical : customChemical;
     const amount = Number(customAmount);
-    const addition = parseAdditionInput({ chemical, amountOz: toOz(amount, customUnit) });
+    const amountOz =
+      customChemical === BROMINE_TABLET
+        ? Math.round(amount * BROMINE_TABLET_OZ * 100) / 100
+        : toOz(amount, customUnit);
+    const addition = parseAdditionInput({ chemical, amountOz });
     if (!isAdditionInput(addition)) {
       setAdditionError(addition.error);
       return;
@@ -666,18 +672,25 @@ export default function TestWizard() {
             <option>Dry Acid (sodium bisulfate)</option>
             <option>Calcium Chloride</option>
             <option>Sodium Bromide</option>
+            <option>{BROMINE_TABLET}</option>
             <option>Other</option>
           </select>
           {customChemical === "Other" && (
             <input className={styles.additionInput} placeholder="Chemical name" value={customOtherChemical} onChange={(e) => setCustomOtherChemical(e.target.value)} />
           )}
           <div className={styles.additionAmountRow}>
-            <input type="number" inputMode="decimal" className={styles.additionInput} placeholder="Amount" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} />
-            <div className={styles.unitToggle}>
-              {(["oz", "tbsp", "tsp"] as AmountUnit[]).map((unit) => (
-                <button key={unit} className={`${styles.unitBtn} ${customUnit === unit ? styles.unitActive : ""}`} onClick={() => setCustomUnit(unit)}>{unit}</button>
-              ))}
-            </div>
+            <input type="number" inputMode="decimal" className={styles.additionInput} placeholder={customChemical === BROMINE_TABLET ? "Tablets" : "Amount"} value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} />
+            {customChemical === BROMINE_TABLET ? (
+              <div className={styles.unitToggle}>
+                <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
+              </div>
+            ) : (
+              <div className={styles.unitToggle}>
+                {(["oz", "tbsp", "tsp"] as AmountUnit[]).map((unit) => (
+                  <button key={unit} className={`${styles.unitBtn} ${customUnit === unit ? styles.unitActive : ""}`} onClick={() => setCustomUnit(unit)}>{unit}</button>
+                ))}
+              </div>
+            )}
           </div>
           <div className={styles.btnRow}>
             <button className={styles.btnPrimary} disabled={additionsFetcher.state !== "idle"} onClick={handleSaveCustomAddition}>Save addition</button>

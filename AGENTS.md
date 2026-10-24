@@ -22,12 +22,13 @@ Migrations must be applied before `npm run dev` will serve pages without a 500 e
 
 ## Backup and restore
 
-`seeds/historical.sql` is committed to git and serves as both local dev seed data and a periodic production backup. It's safe to re-run (`INSERT OR IGNORE`).
+`seeds/historical.sql` is committed to git and serves as both local dev seed data and a periodic production backup. It's plain `INSERT`s with explicit ids, so it only loads into an empty database with migrations applied; re-running it on a populated database fails on duplicate keys.
 
-Update it from production whenever you want a fresh snapshot committed:
+Update it from production whenever you want a fresh snapshot committed. The export includes D1's own `d1_migrations` bookkeeping rows, which collide with the migration apply on restore, so strip them:
 
 ```bash
 npx wrangler d1 export hot-tub-time-machine --remote --no-schema --output=seeds/historical.sql
+grep -v 'd1_migrations' seeds/historical.sql > seeds/historical.tmp && mv seeds/historical.tmp seeds/historical.sql
 git add seeds/historical.sql && git commit -m "chore: update DB seed"
 ```
 

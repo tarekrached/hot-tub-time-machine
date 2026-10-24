@@ -1,5 +1,4 @@
 PRAGMA defer_foreign_keys=TRUE;
-INSERT INTO "d1_migrations" ("id","name","applied_at") VALUES(1,'0001_initial.sql','2026-02-19 22:12:52');
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(1,'2025-06-25 10:00:00','2025-06-25 10:30:00',NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(2,'2025-06-30 10:00:00','2025-06-30 10:30:00',NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(3,'2025-07-04 10:00:00','2025-07-04 10:30:00',NULL);
@@ -81,6 +80,7 @@ INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(78
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(79,'2026-10-01 20:49:17',NULL,NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(80,'2026-10-01 20:52:00','2026-10-01 20:52:05',NULL);
 INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(81,'2026-10-10 00:22:05','2026-10-10 00:34:07',NULL);
+INSERT INTO "test_sessions" ("id","started_at","completed_at","notes") VALUES(82,'2026-10-23 02:00:00','2026-10-23 02:00:00','Backdated 2026-10-24: additions only, no testing');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(1,1,'bromine','before',1.25,NULL,NULL,'2025-06-25 10:01:00');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(2,1,'bromine','after',6.25,NULL,NULL,'2025-06-25 10:02:00');
 INSERT INTO "test_readings" ("id","session_id","test_type","phase","value_ppm","raw_drops","sample_size_ml","created_at") VALUES(3,1,'ph','before',7.1,NULL,NULL,'2025-06-25 10:03:00');
@@ -290,6 +290,8 @@ INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","crea
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(5,81,'Baking Soda',1,'2026-10-10 00:28:00');
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(6,81,'Borax',0.5,'2026-10-10 00:33:00');
 INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(7,81,'Bromine tablet',0.7,'2026-10-10 00:40:00');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(8,82,'Bromine tablet',1.4,'2026-10-23 02:00:00');
+INSERT INTO "chemical_additions" ("id","session_id","chemical","amount_oz","created_at") VALUES(9,82,'7.5% Bleach',4,'2026-10-23 02:00:00');
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(1,'drain_refill','2025-11-08 09:00:00',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(2,'filter_change','2026-02-01 09:00:00',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(3,'filter_change','2026-03-08 01:05:20',NULL);
@@ -297,8 +299,7 @@ INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(5,'water_change','2026-07-05 02:16:44',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(6,'filter_change','2026-07-05 02:16:45',NULL);
 INSERT INTO "maintenance_events" ("id","event_type","created_at","notes") VALUES(7,'drain_refill','2026-07-05 02:17:01','Sodium bromide added');
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('d1_migrations',1);
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_sessions',81);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_sessions',82);
 INSERT INTO "sqlite_sequence" ("name","seq") VALUES('test_readings',203);
-INSERT INTO "sqlite_sequence" ("name","seq") VALUES('chemical_additions',7);
+INSERT INTO "sqlite_sequence" ("name","seq") VALUES('chemical_additions',9);
 INSERT INTO "sqlite_sequence" ("name","seq") VALUES('maintenance_events',7);

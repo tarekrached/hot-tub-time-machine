@@ -14,6 +14,7 @@ import {
   toOz,
   BROMINE_TABLET,
   BROMINE_TABLET_OZ,
+  DEFAULT_BROMINE_TABLETS,
 } from "shared/chemistry";
 import type { AmountUnit, DosingRecommendation } from "shared/chemistry";
 import { isAdditionInput, parseAdditionInput, parseSessionId } from "shared/additions";
@@ -45,6 +46,8 @@ const STEP_COLOR_MAP: Record<string, string> = {
 
 // "bromine_fix" is a virtual step: bromine reading was already taken before pH,
 // and now we apply any fixes and retest after pH is complete.
+const CHOOSE_CHEMICAL = "";
+
 type WizardStep = TestType | "bromine_fix";
 
 function effectiveTest(step: WizardStep): TestType {
@@ -265,7 +268,8 @@ export default function TestWizard() {
   const [dropCount, setDropCount] = useState(0);
   const [infoExpanded, setInfoExpanded] = useState(true);
   const [showAdditionForm, setShowAdditionForm] = useState(false);
-  const [customChemical, setCustomChemical] = useState("7.5% Bleach");
+  const [customChemical, setCustomChemical] = useState(CHOOSE_CHEMICAL);
+  const [bromineTablets, setBromineTablets] = useState(String(DEFAULT_BROMINE_TABLETS));
   const [customOtherChemical, setCustomOtherChemical] = useState("");
   const [customAmount, setCustomAmount] = useState("");
   const [customUnit, setCustomUnit] = useState<AmountUnit>("oz");
@@ -507,6 +511,10 @@ export default function TestWizard() {
     setInputValue("");
   };
 
+  // The bromine recommendation with bleach also offers bromine tablets (0 = skip).
+  const showsBromineTablets = (recKey: string, recs: DosingRecommendation[]) =>
+    recKey === "bromine" && recs.some((rec) => rec.chemical === "7.5% Bleach");
+
   // Saves the entered doses, then starts the re-test timer ("timer") or moves
   // on to the next test without re-testing ("next").
   const handleApplied = (then: "timer" | "next") => {
@@ -521,6 +529,15 @@ export default function TestWizard() {
       if (!Number.isFinite(enteredAmount) || amountOz <= 0) return [];
       return [{ chemical: rec.chemical, amountOz }];
     });
+    if (showsBromineTablets(recKey, recs)) {
+      const tablets = Number(bromineTablets);
+      if (bromineTablets.trim() !== "" && Number.isFinite(tablets) && tablets > 0) {
+        additions.push({
+          chemical: BROMINE_TABLET,
+          amountOz: Math.round(tablets * BROMINE_TABLET_OZ * 100) / 100,
+        });
+      }
+    }
     const invalidAddition = additions.map(parseAdditionInput).find((addition) => !isAdditionInput(addition));
     if (invalidAddition && !isAdditionInput(invalidAddition)) {
       setAdditionError(invalidAddition.error);
@@ -637,6 +654,10 @@ export default function TestWizard() {
 
   const handleSaveCustomAddition = () => {
     if (!state.sessionId || additionsFetcher.state !== "idle") return;
+    if (customChemical === CHOOSE_CHEMICAL) {
+      setAdditionError("Choose a chemical.");
+      return;
+    }
     const chemical = customChemical === "Other" ? customOtherChemical : customChemical;
     const amount = Number(customAmount);
     const amountOz =
@@ -661,11 +682,27 @@ export default function TestWizard() {
     );
   };
 
+  // Fresh default each time a recommendation step is shown.
+  useEffect(() => {
+    setBromineTablets(String(DEFAULT_BROMINE_TABLETS));
+    setShowAdditionForm(false);
+  }, [state.step, currentStep]);
+
+  const openAdditionForm = () => {
+    setCustomChemical(currentTest === "bromine" ? BROMINE_TABLET : CHOOSE_CHEMICAL);
+    setCustomOtherChemical("");
+    setCustomAmount("");
+    setCustomUnit("oz");
+    setAdditionError(null);
+    setShowAdditionForm(true);
+  };
+
   const additionForm = (
     <>
       {showAdditionForm ? (
         <div className={styles.additionForm}>
           <select className={styles.additionSelect} value={customChemical} onChange={(e) => setCustomChemical(e.target.value)}>
+            <option value={CHOOSE_CHEMICAL}>Choose chemical…</option>
             <option>7.5% Bleach</option>
             <option>Baking Soda</option>
             <option>Borax</option>
@@ -698,7 +735,7 @@ export default function TestWizard() {
           </div>
         </div>
       ) : (
-        <button className={styles.addChemicalButton} onClick={() => setShowAdditionForm(true)}>+ Add chemical</button>
+        <button className={styles.addChemicalButton} onClick={openAdditionForm}>+ Add something else</button>
       )}
       {additionError && <div className={styles.additionError}>{additionError}</div>}
     </>
@@ -1103,10 +1140,29 @@ export default function TestWizard() {
                 </div>
                 );
               })}
+              {showsBromineTablets(recKey, recs) && (
+                <div className={styles.recCard}>
+                  <div className={styles.recChemical}>Bromine tablets</div>
+                  <div className={styles.recReason}>Added with the bleach. Set 0 to skip.</div>
+                  <div className={styles.recommendationAmount}>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      className={styles.additionInput}
+                      aria-label="Bromine tablets"
+                      value={bromineTablets}
+                      onChange={(e) => setBromineTablets(e.target.value)}
+                    />
+                    <div className={styles.unitToggle}>
+                      <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
-        {additionForm}
         <div className={styles.btnRow}>
           {isInRange ? (
             <button className={styles.btnPrimary} onClick={advanceToNextTest}>
@@ -1114,20 +1170,41 @@ export default function TestWizard() {
             </button>
           ) : (
             <>
-              <button
-                className={styles.btnPrimary}
-                disabled={additionsFetcher.state !== "idle"}
-                onClick={() => handleApplied("timer")}
-              >
-                Applied — Start Timer
-              </button>
-              <button
-                className={styles.btnSecondary}
-                disabled={additionsFetcher.state !== "idle"}
-                onClick={() => handleApplied("next")}
-              >
-                Applied — Skip Re-test
-              </button>
+              {currentTest === "bromine" ? (
+                <>
+                  <button
+                    className={styles.btnPrimary}
+                    disabled={additionsFetcher.state !== "idle"}
+                    onClick={() => handleApplied("next")}
+                  >
+                    Applied
+                  </button>
+                  <button
+                    className={styles.btnSecondary}
+                    disabled={additionsFetcher.state !== "idle"}
+                    onClick={() => handleApplied("timer")}
+                  >
+                    Applied — Start Timer
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className={styles.btnPrimary}
+                    disabled={additionsFetcher.state !== "idle"}
+                    onClick={() => handleApplied("timer")}
+                  >
+                    Applied — Start Timer
+                  </button>
+                  <button
+                    className={styles.btnSecondary}
+                    disabled={additionsFetcher.state !== "idle"}
+                    onClick={() => handleApplied("next")}
+                  >
+                    Applied — Skip Re-test
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -1140,6 +1217,7 @@ export default function TestWizard() {
             Didn't add anything
           </button>
         )}
+        {additionForm}
         {state.additions.length > 0 && (
           <div className={styles.additionsList}>
             {state.additions.map((addition, index) => (

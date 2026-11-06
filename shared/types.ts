@@ -120,7 +120,7 @@ export const TEST_INSTRUCTIONS: Record<
 
 export const MAINTENANCE_LABELS: Record<MaintenanceType, string> = {
   filter_change: "Filter Change",
-  water_change: "Water Change",
+  water_change: "Water Change", // legacy: no longer offered, kept so old rows render
   drain_refill: "Drain & Refill",
 };
 

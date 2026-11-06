@@ -146,16 +146,16 @@ export default function ReferencePage() {
               <td>{TEST_CADENCE_DAYS.ph} days</td>
             </tr>
             <tr>
-              <td>TA + Calcium</td>
+              <td>TA</td>
               <td>{TEST_CADENCE_DAYS.ta} days</td>
+            </tr>
+            <tr>
+              <td>Calcium</td>
+              <td>After a drain &amp; refill</td>
             </tr>
             <tr>
               <td>Filter Change</td>
               <td>{MAINTENANCE_CADENCE_DAYS.filter_change} days</td>
-            </tr>
-            <tr>
-              <td>Water Change</td>
-              <td>{MAINTENANCE_CADENCE_DAYS.water_change} days</td>
             </tr>
             <tr>
               <td>Drain & Refill</td>

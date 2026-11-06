@@ -8,7 +8,7 @@ A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D
 - **Drop-to-PPM Conversion** — Automatic conversion for Taylor K-2106 titration tests (supports 10ml and 25ml sample sizes); pH uses a swipe slider with out-of-range `<7.0` / `>8.0` support
 - **Dosing Recommendations** — Calculates chemical amounts based on current readings for a 330-gallon tub
 - **Dashboard** — Status cards with urgency coloring (green/yellow/red), sparkline trends, and overdue test badges
-- **Maintenance Log** — Track filter changes, water changes, and drain/refill events with sodium bromide reminders
+- **Maintenance Log** — Track filter changes and drain/refill events with sodium bromide reminders. The bromine recommendation also adds bromine tablets (default 2) alongside the bleach
 - **pH Enforcement** — Soft auto-skip when bromine > 10 ppm (Taylor kit limit) with manual override
 
 ## Tech Stack
@@ -38,7 +38,9 @@ Configured for a **330-gallon** hot tub using the [bromine 3-step method](https:
 | pH | 7.4 – 7.8 | Weekly |
 | Bromine | 4 – 6 ppm | Weekly |
 | Total Alkalinity | 50 – 70 ppm | Every 3 weeks |
-| Calcium Hardness | 130 – 150 ppm | Every 3 weeks |
+| Calcium Hardness | 130 – 150 ppm | After a drain & refill (no day timer) |
+
+Maintenance: filter change every 30 days, drain & refill every 180 days.
 
 ## Ideas
 

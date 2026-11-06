@@ -15,7 +15,7 @@ export interface HaTestSummary {
   reading_at: string | null;
   tested_at: string | null;
   days_since: number | null;
-  cadence_days: number;
+  cadence_days: number | null;
   status: TestCadenceStatus;
 }
 
@@ -114,6 +114,13 @@ export async function getHaSummary(
   now = new Date()
 ): Promise<HaSummary> {
   const tests = {} as Record<TestType, HaTestSummary>;
+  const lastDrain = await db
+    .prepare(
+      `SELECT MAX(created_at) AS created_at FROM maintenance_events
+       WHERE event_type = 'drain_refill'`
+    )
+    .first<{ created_at: string | null }>();
+  const lastDrainRefillAt = lastDrain?.created_at ?? null;
 
   for (const testType of TEST_TYPES) {
     const [latestReading, lastTest] = await Promise.all([
@@ -142,7 +149,7 @@ export async function getHaSummary(
       tested_at: testedAt,
       days_since: daysSince(testedAt, now),
       cadence_days: TEST_CADENCE_DAYS[testType],
-      status: getTestCadenceStatus(testType, testedAt, now),
+      status: getTestCadenceStatus(testType, testedAt, now, lastDrainRefillAt),
     };
   }
 

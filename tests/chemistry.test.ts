@@ -13,6 +13,11 @@ import {
   TEST_ORDER,
   fromOz,
   toOz,
+  getTestCadenceStatus,
+  isCalciumDue,
+  TEST_CADENCE_DAYS,
+  MAINTENANCE_CADENCE_DAYS,
+  DEFAULT_BROMINE_TABLETS,
 } from "shared/chemistry";
 
 describe("dropsToPpm", () => {
@@ -244,5 +249,48 @@ describe("TEST_ORDER", () => {
     expect(TEST_ORDER).toContain("bromine");
     expect(TEST_ORDER).toContain("ph");
     expect(TEST_ORDER).toContain("calcium");
+  });
+});
+
+describe("calcium cadence", () => {
+  const now = new Date("2026-10-01T00:00:00Z");
+
+  it("has no day timer", () => {
+    expect(TEST_CADENCE_DAYS.calcium).toBeNull();
+  });
+
+  it("is not due without a drain & refill, however old the reading", () => {
+    expect(isCalciumDue(null, null)).toBe(false);
+    expect(isCalciumDue("2025-01-01 00:00:00", null)).toBe(false);
+    expect(getTestCadenceStatus("calcium", null, now, null)).toBe("current");
+    expect(getTestCadenceStatus("calcium", "2025-01-01 00:00:00", now, null)).toBe("current");
+  });
+
+  it("is due when a drain & refill is newer than the last reading", () => {
+    expect(isCalciumDue("2026-06-01 00:00:00", "2026-07-05 02:17:01")).toBe(true);
+    expect(isCalciumDue(null, "2026-07-05 02:17:01")).toBe(true);
+    expect(getTestCadenceStatus("calcium", null, now, "2026-07-05 02:17:01")).toBe("due");
+  });
+
+  it("is not due once calcium is read after the drain & refill", () => {
+    expect(isCalciumDue("2026-07-06 00:00:00", "2026-07-05 02:17:01")).toBe(false);
+    expect(getTestCadenceStatus("calcium", "2026-07-06 00:00:00", now, "2026-07-05 02:17:01")).toBe("current");
+  });
+
+  it("leaves other tests on their day timers", () => {
+    expect(getTestCadenceStatus("ph", "2026-09-01 00:00:00", now, null)).toBe("overdue");
+    expect(getTestCadenceStatus("ph", null, now, null)).toBe("never");
+  });
+});
+
+describe("maintenance cadence and tablets", () => {
+  it("uses 180 days for drain & refill and drops water_change", () => {
+    expect(MAINTENANCE_CADENCE_DAYS.drain_refill).toBe(180);
+    expect(MAINTENANCE_CADENCE_DAYS.filter_change).toBe(30);
+    expect(MAINTENANCE_CADENCE_DAYS.water_change).toBeUndefined();
+  });
+
+  it("defaults to 2 bromine tablets", () => {
+    expect(DEFAULT_BROMINE_TABLETS).toBe(2);
   });
 });

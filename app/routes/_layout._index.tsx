@@ -44,15 +44,22 @@ function getUrgency(
 export default function Dashboard() {
   const { dashboard, sparklines, lastValues } = useLoaderData<typeof loader>();
   const testTypes: TestType[] = ["ph", "bromine", "ta", "calcium"];
-  const maintTypes: MaintenanceType[] = ["filter_change", "water_change"];
+  const maintTypes: MaintenanceType[] = ["filter_change", "drain_refill"];
 
   return (
     <div className={styles.dashboard}>
       <div className={styles.grid}>
         {testTypes.map((tt) => {
           const lastDate = dashboard.lastTests[tt];
-          const urgency = getUrgency(lastDate, TEST_CADENCE_DAYS[tt]);
           const isDue = dashboard.suggestedTests.includes(tt);
+          const cadenceDays = TEST_CADENCE_DAYS[tt];
+          // Calcium has no day timer: it is urgent only while due after a drain & refill.
+          const urgency =
+            cadenceDays === null
+              ? isDue
+                ? "urgent"
+                : "ok"
+              : getUrgency(lastDate, cadenceDays);
           const sparkline = sparklines[tt];
 
           const lastVal = lastValues[tt];

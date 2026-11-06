@@ -80,11 +80,7 @@ export default function MaintenancePage() {
     );
   }
 
-  const maintTypes: MaintenanceType[] = [
-    "filter_change",
-    "water_change",
-    "drain_refill",
-  ];
+  const maintTypes: MaintenanceType[] = ["filter_change", "drain_refill"];
 
   return (
     <div className={styles.maintenance}>

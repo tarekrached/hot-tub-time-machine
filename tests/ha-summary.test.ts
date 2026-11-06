@@ -236,7 +236,8 @@ describe("HA summary", () => {
       value: null,
       tested_at: null,
       days_since: null,
-      status: "never",
+      cadence_days: null,
+      status: "current",
     });
     expect(summary.maintenance).toEqual([
       { event_type: "filter_change", created_at: "2026-02-10 09:00:00" },

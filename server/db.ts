@@ -218,32 +218,29 @@ export async function getDashboardData(
     lastTests[tt] = row?.last_date || null;
   }
 
-  const maintTypes: MaintenanceType[] = [
-    "filter_change",
-    "water_change",
-    "drain_refill",
-  ];
+  const maintTypes: MaintenanceType[] = ["filter_change", "drain_refill"];
   const lastMaintenance: Record<string, string | null> = {};
 
   for (const mt of maintTypes) {
-    // drain_refill also satisfies water_change (a full drain is a water change)
-    const eventTypes =
-      mt === "water_change" ? ["water_change", "drain_refill"] : [mt];
-    const placeholders = eventTypes.map(() => "?").join(", ");
     const row = await db
       .prepare(
         `SELECT MAX(created_at) as last_date
          FROM maintenance_events
-         WHERE event_type IN (${placeholders})`
+         WHERE event_type = ?`
       )
-      .bind(...eventTypes)
+      .bind(mt)
       .first<{ last_date: string | null }>();
     lastMaintenance[mt] = row?.last_date || null;
   }
 
   const suggestedTests: TestType[] = [];
   for (const tt of testTypes) {
-    const status = getTestCadenceStatus(tt, lastTests[tt]);
+    const status = getTestCadenceStatus(
+      tt,
+      lastTests[tt],
+      new Date(),
+      lastMaintenance.drain_refill
+    );
     if (status === "due" || status === "overdue" || status === "never") {
       suggestedTests.push(tt);
     }

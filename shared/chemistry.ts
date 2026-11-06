@@ -101,6 +101,8 @@ export function ozToTeaspoons(oz: number): number {
 // The picker takes a tablet count and stores count × this in amount_oz.
 export const BROMINE_TABLET = "Bromine tablet";
 export const BROMINE_TABLET_OZ = 0.7;
+// Tablets added alongside the bleach shock at the bromine step.
+export const DEFAULT_BROMINE_TABLETS = 2;
 
 export type AmountUnit = "oz" | "tbsp" | "tsp";
 
@@ -209,18 +211,19 @@ export function getRecommendations(
 }
 
 // Cadence in days for when tests should be performed
-export const TEST_CADENCE_DAYS: Record<TestType, number> = {
+// Calcium has no day timer (null): it only changes on a drain & refill, so it is
+// due only when a drain_refill is newer than the last calcium reading.
+export const TEST_CADENCE_DAYS: Record<TestType, number | null> = {
   ph: 7, // weekly
   bromine: 7, // weekly
   ta: 21, // every 2-4 weeks (use 3 week default)
-  calcium: 21, // every 2-4 weeks
+  calcium: null, // event-driven, see getTestCadenceStatus
 };
 
 // Maintenance cadence in days
 export const MAINTENANCE_CADENCE_DAYS: Record<string, number> = {
   filter_change: 30,
-  water_change: 30,
-  drain_refill: 105, // ~3.5 months
+  drain_refill: 180, // ~6 months
 };
 
 export function formatPhValue(ppm: number): string {
@@ -236,16 +239,32 @@ export function daysSince(dateStr: string | null, now = new Date()): number | nu
   return Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
+// Calcium is due only after a drain & refill that is newer than the latest
+// calcium reading (or when there is a drain & refill and no reading ever).
+// Timestamps are SQLite "YYYY-MM-DD HH:MM:SS" UTC strings, so they compare lexicographically.
+export function isCalciumDue(
+  lastCalciumAt: string | null,
+  lastDrainRefillAt: string | null
+): boolean {
+  if (!lastDrainRefillAt) return false;
+  if (!lastCalciumAt) return true;
+  return lastDrainRefillAt > lastCalciumAt;
+}
+
 export type TestCadenceStatus = "current" | "due" | "overdue" | "never";
 
 export function getTestCadenceStatus(
   testType: TestType,
   lastTestedAt: string | null,
-  now = new Date()
+  now = new Date(),
+  lastDrainRefillAt: string | null = null
 ): TestCadenceStatus {
+  const cadenceDays = TEST_CADENCE_DAYS[testType];
+  if (cadenceDays === null) {
+    return isCalciumDue(lastTestedAt, lastDrainRefillAt) ? "due" : "current";
+  }
   const elapsedDays = daysSince(lastTestedAt, now);
   if (elapsedDays === null) return "never";
-  const cadenceDays = TEST_CADENCE_DAYS[testType];
   if (elapsedDays > cadenceDays) return "overdue";
   if (elapsedDays === cadenceDays) return "due";
   return "current";

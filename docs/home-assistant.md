@@ -12,7 +12,7 @@
 
 `GET https://hot-tub-time-machine.tarek-rached.workers.dev/api/ha/summary` is a read-only endpoint for Home Assistant. The app remains the only place that writes test readings and maintenance events.
 
-Cloudflare Access protects the Worker. HA authenticates with a Cloudflare Access service token, and Access attaches a JWT that the Worker verifies against the team JWKS as defense in depth. Its response contains the latest displayed value (`value` and `reading_at`), the latest initial test reading (`tested_at`), `days_since`, the existing app cadence in `cadence_days`, and a cadence `status` of `current`, `due`, `overdue`, or `never`. An after-treatment reading can be newer than `tested_at`; this matches the dashboard, which displays the latest value but bases cadence on the initial (`before`) reading. `maintenance` contains the ten newest event types and timestamps.
+Cloudflare Access protects the Worker. HA authenticates with a Cloudflare Access service token, and Access attaches a JWT that the Worker verifies against the team JWKS as defense in depth. Its response contains the latest displayed value (`value` and `reading_at`), the latest initial test reading (`tested_at`), `days_since`, the existing app cadence in `cadence_days` (null for calcium, which has no day timer and is `due` only after a drain & refill newer than its last test), and a cadence `status` of `current`, `due`, `overdue`, or `never`. An after-treatment reading can be newer than `tested_at`; this matches the dashboard, which displays the latest value but bases cadence on the initial (`before`) reading. `maintenance` contains the ten newest event types and timestamps.
 
 ## Full history API
 

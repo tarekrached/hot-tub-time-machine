@@ -1,6 +1,6 @@
 # Plan: weekly dose card, linear wizard, filter-change steps, research docs
 
-Status: approved by Tarek 2026-11-14 (session htm-layout); executing via build-cycle.
+Status: built 2026-11-14 on branch worktree-agent-afa1fb63b5246447e (fe159ee, 4aebe6c, 3b6686a); review APPROVE-WITH-NITS, nits folded in; awaiting merge/deploy go.
 
 ## Why
 

@@ -94,6 +94,25 @@
   line-height: 1.5;
 }
 
+.filterList {
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.btnLink {
+  align-self: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  background: none;
+}
+
 .btnRow {
   display: flex;
   gap: 10px;

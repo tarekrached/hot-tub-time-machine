@@ -9,7 +9,7 @@ import type {
   SessionDetail,
   TimelineEntry,
 } from "shared/types";
-import { getTestCadenceStatus } from "shared/chemistry";
+import { getTestCadenceStatus, BLEACH_CHEMICAL, BROMINE_TABLET } from "shared/chemistry";
 
 type D1Database = {
   prepare(query: string): D1PreparedStatement;
@@ -169,6 +169,23 @@ export async function addChemicalAdditions(
         .bind(sessionId, chemical, amountOz)
     )
   );
+}
+
+export async function getLastAdditionTimes(
+  db: D1Database
+): Promise<{ lastBleachAt: string | null; lastTabletsAt: string | null }> {
+  const row = await db
+    .prepare(
+      `SELECT MAX(CASE WHEN chemical = ? THEN created_at END) AS last_bleach,
+              MAX(CASE WHEN chemical = ? THEN created_at END) AS last_tablets
+       FROM chemical_additions`
+    )
+    .bind(BLEACH_CHEMICAL, BROMINE_TABLET)
+    .first<{ last_bleach: string | null; last_tablets: string | null }>();
+  return {
+    lastBleachAt: row?.last_bleach ?? null,
+    lastTabletsAt: row?.last_tablets ?? null,
+  };
 }
 
 // --- Maintenance ---

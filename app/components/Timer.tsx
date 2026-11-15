@@ -69,7 +69,7 @@ export function Timer({ durationSeconds = 900, endsAt, onComplete }: TimerProps)
           {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
         </div>
       </div>
-      <p className={styles.hint}>Run jets to mix chemicals</p>
+      <p className={styles.hint}>Keep the pump running to mix</p>
       <button className={styles.continueBtn} onClick={onComplete}>
         Continue Early
       </button>

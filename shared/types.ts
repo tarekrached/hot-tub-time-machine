@@ -94,7 +94,7 @@ export const TEST_INSTRUCTIONS: Record<
       "💧 × ppm/💧 = ppm (set by sample size)",
     ],
     guidance:
-      "If low, shock with bleach.\nAbove 10: remove floater, leave cover open.",
+      "Weekly shock is logged at the end.\nAbove 10: remove floater, leave cover open.",
   },
   ph: {
     procedure: [

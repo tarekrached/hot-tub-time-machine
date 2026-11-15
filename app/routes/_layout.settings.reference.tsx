@@ -13,6 +13,7 @@ import {
   MAINTENANCE_CADENCE_DAYS,
 } from "shared/chemistry";
 import { TEST_RANGES } from "shared/types";
+import { FILTER_CHANGE_STEPS, FILTER_CLEANING_STEPS } from "shared/maintenance";
 import styles from "~/styles/reference.module.css";
 
 export default function ReferencePage() {
@@ -181,6 +182,22 @@ export default function ReferencePage() {
           <li>
             <strong>Calcium Hardness</strong> — adjust last
           </li>
+        </ol>
+      </section>
+
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Filter Cleaning</h3>
+        <p className={styles.rangeNote}>At the tub</p>
+        <ol className={styles.orderList}>
+          {FILTER_CHANGE_STEPS.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p className={styles.rangeNote}>Over the next day</p>
+        <ol className={styles.orderList} start={FILTER_CHANGE_STEPS.length + 1}>
+          {FILTER_CLEANING_STEPS.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
         </ol>
       </section>
 

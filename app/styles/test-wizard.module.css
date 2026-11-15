@@ -445,6 +445,37 @@
   color: var(--color-text-secondary);
 }
 
+/* Weekly-dose card on the summary step */
+.doseCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.doseRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doseRowHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.doseRemove {
+  min-width: 44px;
+  min-height: 36px;
+  font-size: 18px;
+  color: var(--color-text-secondary);
+  background: none;
+}
+
 /* pH Slider */
 .phSlider {
   width: 100%;

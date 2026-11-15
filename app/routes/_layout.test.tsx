@@ -1,20 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/_layout.test";
-import { getDashboardData } from "server/db";
+import { getDashboardData, getLastAdditionTimes } from "server/db";
 import {
   dropsToPpm,
   ppmToDrops,
   getRecommendations,
-  ozToTeaspoons,
-  ozToTablespoons,
   TEST_ORDER,
   formatPhValue,
   fromOz,
   toOz,
   BROMINE_TABLET,
   BROMINE_TABLET_OZ,
+  BLEACH_CHEMICAL,
+  BLEACH_SHOCK_OZ,
   DEFAULT_BROMINE_TABLETS,
+  tabletsToOz,
+  daysSince,
+  getWeeklyDose,
+  bromineRiseFromBleach,
 } from "shared/chemistry";
 import type { AmountUnit, DosingRecommendation } from "shared/chemistry";
 import { isAdditionInput, parseAdditionInput, parseSessionId } from "shared/additions";
@@ -45,29 +49,10 @@ const STEP_COLOR_MAP: Record<string, string> = {
   clear: "#94a3b8",
 };
 
-// "bromine_fix" is a virtual step: bromine reading was already taken before pH,
-// and now we apply any fixes and retest after pH is complete.
 const CHOOSE_CHEMICAL = "";
 
-type WizardStep = TestType | "bromine_fix";
-
-function effectiveTest(step: WizardStep): TestType {
-  return step === "bromine_fix" ? "bromine" : step;
-}
-
-// Build the ordered step list from selected tests, inserting bromine_fix
-// after pH when both bromine and pH are selected.
-function buildSelectedTests(tests: TestType[]): WizardStep[] {
-  const sorted = tests
-    .slice()
-    .sort((a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b));
-  if (sorted.includes("bromine") && sorted.includes("ph")) {
-    const phIdx = sorted.indexOf("ph");
-    const result: WizardStep[] = [...sorted];
-    result.splice(phIdx + 1, 0, "bromine_fix");
-    return result;
-  }
-  return sorted;
+function buildSelectedTests(tests: TestType[]): TestType[] {
+  return tests.slice().sort((a, b) => TEST_ORDER.indexOf(a) - TEST_ORDER.indexOf(b));
 }
 
 function renderStep(text: string) {
@@ -99,9 +84,7 @@ function renderStep(text: string) {
 }
 
 function daysAgoShort(dateStr: string): string {
-  const days = Math.floor(
-    (Date.now() - new Date(dateStr + "Z").getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const days = daysSince(dateStr) ?? 0;
   return days === 0 ? "today" : `${days}d`;
 }
 
@@ -114,7 +97,7 @@ function getMaxDrops(testType: TestType, sampleSize: number): number {
 
 interface WizardState {
   sessionId: number | null;
-  selectedTests: WizardStep[];
+  selectedTests: TestType[];
   currentTestIndex: number;
   step: "select" | "input" | "recommendation" | "timer" | "retest" | "summary";
   readings: Record<
@@ -133,6 +116,29 @@ interface WizardState {
   recommendationAmounts: Record<string, { value: string; unit: AmountUnit }>;
   /** Wall-clock end of the re-test timer (ms); persisted so it survives reloads. */
   timerEndsAt?: number | null;
+  /** What the summary's weekly-dose card logged, so it can't be logged twice. */
+  weeklyDoseLogged?: { chemical: string; amountOz: number }[];
+}
+
+// Saved state from before the linear flow may hold the removed "bromine_fix"
+// step; discard it rather than resume into a step that no longer exists.
+function loadSavedState(suggestedTests: TestType[]): WizardState {
+  const saved = sessionStorage.getItem(STORAGE_KEY);
+  if (!saved) return makeInitialState(suggestedTests);
+  try {
+    const parsed = JSON.parse(saved) as WizardState;
+    if ((parsed.selectedTests as string[]).includes("bromine_fix")) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return makeInitialState(suggestedTests);
+    }
+    return {
+      ...parsed,
+      additions: parsed.additions || [],
+      recommendationAmounts: parsed.recommendationAmounts || {},
+    };
+  } catch {
+    return makeInitialState(suggestedTests);
+  }
 }
 
 function makeInitialState(suggestedTests: TestType[]): WizardState {
@@ -154,11 +160,12 @@ function makeInitialState(suggestedTests: TestType[]): WizardState {
 
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env as { DB: D1Database };
-  const [dashboard, recentReadings] = await Promise.all([
+  const [dashboard, recentReadings, lastAdditions] = await Promise.all([
     getDashboardData(env.DB),
     getRecentReadingsByTestType(env.DB),
+    getLastAdditionTimes(env.DB),
   ]);
-  return { suggestedTests: dashboard.suggestedTests, recentReadings };
+  return { suggestedTests: dashboard.suggestedTests, recentReadings, lastAdditions };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -241,26 +248,12 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export default function TestWizard() {
-  const { suggestedTests, recentReadings } = useLoaderData<typeof loader>();
+  const { suggestedTests, recentReadings, lastAdditions } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const additionsFetcher = useFetcher();
-  const [state, setState] = useState<WizardState>(() => {
-    if (typeof window === "undefined") return makeInitialState(suggestedTests);
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as WizardState;
-        return {
-          ...parsed,
-          additions: parsed.additions || [],
-          recommendationAmounts: parsed.recommendationAmounts || {},
-        };
-      } catch {
-        return makeInitialState(suggestedTests);
-      }
-    }
-    return makeInitialState(suggestedTests);
-  });
+  const [state, setState] = useState<WizardState>(() =>
+    typeof window === "undefined" ? makeInitialState(suggestedTests) : loadSavedState(suggestedTests)
+  );
   const [showResume, setShowResume] = useState(false);
   const [inputMode, setInputMode] = useState<"ppm" | "drops">("drops");
   const [inputValue, setInputValue] = useState("");
@@ -270,13 +263,18 @@ export default function TestWizard() {
   const [infoExpanded, setInfoExpanded] = useState(true);
   const [showAdditionForm, setShowAdditionForm] = useState(false);
   const [customChemical, setCustomChemical] = useState(CHOOSE_CHEMICAL);
-  const [bromineTablets, setBromineTablets] = useState(String(DEFAULT_BROMINE_TABLETS));
+  // Weekly-dose card inputs; null = removed with ×.
+  const [weeklyTablets, setWeeklyTablets] = useState<string | null>(String(DEFAULT_BROMINE_TABLETS));
+  const [weeklyBleach, setWeeklyBleach] = useState<string | null>(String(BLEACH_SHOCK_OZ));
   const [customOtherChemical, setCustomOtherChemical] = useState("");
   const [customAmount, setCustomAmount] = useState("");
   const [customUnit, setCustomUnit] = useState<AmountUnit>("oz");
   const [additionError, setAdditionError] = useState<string | null>(null);
   const [pendingAdditionSave, setPendingAdditionSave] = useState<
-    { type: "recommendations"; recKey: string; then: "timer" | "next" } | { type: "custom" } | null
+    | { type: "recommendations"; recKey: string; then: "timer" | "next" }
+    | { type: "custom" }
+    | { type: "weekly" }
+    | null
   >(null);
 
   // Check for resume on mount
@@ -340,6 +338,8 @@ export default function TestWizard() {
               }
             : prev
         );
+      } else if (pendingAdditionSave?.type === "weekly") {
+        setState((prev) => ({ ...prev, weeklyDoseLogged: data.additions }));
       } else if (pendingAdditionSave?.type === "custom") {
         setCustomAmount("");
         setCustomOtherChemical("");
@@ -353,10 +353,7 @@ export default function TestWizard() {
     setState((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  const currentStep = state.selectedTests[state.currentTestIndex] as
-    | WizardStep
-    | undefined;
-  const currentTest = currentStep ? effectiveTest(currentStep) : undefined;
+  const currentTest = state.selectedTests[state.currentTestIndex] as TestType | undefined;
   const totalSteps = state.selectedTests.length + 1; // +1 for summary
   const currentStepNum =
     state.step === "summary"
@@ -383,13 +380,10 @@ export default function TestWizard() {
   // --- Test Selection ---
   const handleToggleTest = (tt: TestType) => {
     setState((prev) => {
-      // Work with the base TestType list (exclude virtual steps)
-      const currentBase = prev.selectedTests
-        .filter((s): s is TestType => s !== "bromine_fix");
-      const newBase = currentBase.includes(tt)
-        ? currentBase.filter((t) => t !== tt)
-        : [...currentBase, tt];
-      return { ...prev, selectedTests: buildSelectedTests(newBase) };
+      const next = prev.selectedTests.includes(tt)
+        ? prev.selectedTests.filter((t) => t !== tt)
+        : [...prev.selectedTests, tt];
+      return { ...prev, selectedTests: buildSelectedTests(next) };
     });
   };
 
@@ -439,9 +433,6 @@ export default function TestWizard() {
       sampleSize: sampleSizeMl ?? undefined,
     };
 
-    // Use effectiveTest as the readings key (bromine_fix stores under "bromine")
-    const readingKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
-
     if (phase === "before") {
       // Track bromine value for pH enforcement
       if (currentTest === "bromine") {
@@ -449,62 +440,21 @@ export default function TestWizard() {
       }
 
       const recs = getRecommendations(currentTest, ppm);
-
-      // When bromine_fix is in the list, the bromine "before" step skips straight
-      // to the next test — the recommendation is deferred until bromine_fix.
-      const hasBromineFix = state.selectedTests.includes("bromine_fix");
-      const deferBromineRec = currentStep === "bromine" && hasBromineFix;
-
-      setState((prev) => {
-        const next: WizardState = {
-          ...prev,
-          readings: {
-            ...prev.readings,
-            [readingKey]: { ...prev.readings[readingKey], before: readingData },
-          },
-          recommendations: { ...prev.recommendations, [readingKey]: recs },
-        };
-        if (deferBromineRec) {
-          return next; // advanceToNextTest() called below
-        }
-        return { ...next, step: "recommendation" };
-      });
-
-      if (deferBromineRec) {
-        // Advance after the state update settles via the callback form
-        setState((prev) => {
-          const nextIdx = prev.currentTestIndex + 1;
-          if (nextIdx >= prev.selectedTests.length) {
-            return { ...prev, step: "summary" };
-          }
-          const nextStepVal = prev.selectedTests[nextIdx];
-          const goToStep = nextStepVal === "bromine_fix" ? "recommendation" : "input";
-          const nextIsPhWithHighBromine =
-            nextStepVal === "ph" &&
-            prev.bromineValue !== null &&
-            prev.bromineValue > 10;
-          return {
-            ...prev,
-            currentTestIndex: nextIdx,
-            step: goToStep,
-            phSkipped: nextIsPhWithHighBromine,
-            phSkippedReason: nextIsPhWithHighBromine
-              ? "pH skipped: bromine is above 10 ppm (Taylor kit limit). Re-test pH when bromine drops below 10."
-              : null,
-          };
-        });
-        setInputValue("");
-        setInputMode("drops");
-        setPhIndex(PH_DEFAULT_INDEX);
-        setDropCount(0);
-        setInfoExpanded(true);
-      }
+      setState((prev) => ({
+        ...prev,
+        readings: {
+          ...prev.readings,
+          [currentTest]: { ...prev.readings[currentTest], before: readingData },
+        },
+        recommendations: { ...prev.recommendations, [currentTest]: recs },
+        step: "recommendation",
+      }));
     } else {
       setState((prev) => ({
         ...prev,
         readings: {
           ...prev.readings,
-          [readingKey]: { ...prev.readings[readingKey], after: readingData },
+          [currentTest]: { ...prev.readings[currentTest], after: readingData },
         },
       }));
       advanceToNextTest();
@@ -513,15 +463,11 @@ export default function TestWizard() {
     setInputValue("");
   };
 
-  // The bromine recommendation with bleach also offers bromine tablets (0 = skip).
-  const showsBromineTablets = (recKey: string, recs: DosingRecommendation[]) =>
-    recKey === "bromine" && recs.some((rec) => rec.chemical === "7.5% Bleach");
-
   // Saves the entered doses, then starts the re-test timer ("timer") or moves
   // on to the next test without re-testing ("next").
   const handleApplied = (then: "timer" | "next") => {
     if (!currentTest || !state.sessionId || additionsFetcher.state !== "idle") return;
-    const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
+    const recKey = currentTest;
     const recs = state.recommendations[recKey] ?? [];
     const additions = recs.flatMap((rec, index) => {
       if (rec.amountOz === undefined || !rec.unit) return [];
@@ -531,15 +477,6 @@ export default function TestWizard() {
       if (!Number.isFinite(enteredAmount) || amountOz <= 0) return [];
       return [{ chemical: rec.chemical, amountOz }];
     });
-    if (showsBromineTablets(recKey, recs)) {
-      const tablets = Number(bromineTablets);
-      if (bromineTablets.trim() !== "" && Number.isFinite(tablets) && tablets > 0) {
-        additions.push({
-          chemical: BROMINE_TABLET,
-          amountOz: Math.round(tablets * BROMINE_TABLET_OZ * 100) / 100,
-        });
-      }
-    }
     const invalidAddition = additions.map(parseAdditionInput).find((addition) => !isAdditionInput(addition));
     if (invalidAddition && !isAdditionInput(invalidAddition)) {
       setAdditionError(invalidAddition.error);
@@ -583,8 +520,6 @@ export default function TestWizard() {
       update({ step: "summary" });
     } else {
       const nextStepVal = state.selectedTests[nextIdx];
-      // bromine_fix starts at recommendation (reading already taken)
-      const goToStep = nextStepVal === "bromine_fix" ? "recommendation" : "input";
       // Check pH enforcement
       if (
         nextStepVal === "ph" &&
@@ -603,7 +538,7 @@ export default function TestWizard() {
         setState((prev) => ({
           ...prev,
           currentTestIndex: nextIdx,
-          step: goToStep,
+          step: "input",
           phSkipped: false,
           phSkippedReason: null,
         }));
@@ -668,7 +603,7 @@ export default function TestWizard() {
     const amount = Number(customAmount);
     const amountOz =
       customChemical === BROMINE_TABLET
-        ? Math.round(amount * BROMINE_TABLET_OZ * 100) / 100
+        ? tabletsToOz(amount)
         : toOz(amount, customUnit);
     const addition = parseAdditionInput({ chemical, amountOz });
     if (!isAdditionInput(addition)) {
@@ -688,11 +623,42 @@ export default function TestWizard() {
     );
   };
 
-  // Fresh default each time a recommendation step is shown.
   useEffect(() => {
-    setBromineTablets(String(DEFAULT_BROMINE_TABLETS));
     setShowAdditionForm(false);
-  }, [state.step, currentStep]);
+  }, [state.step, currentTest]);
+
+  // Weekly-dose card on the summary step.
+  const latestBromine = state.readings.bromine?.after?.ppm ?? state.readings.bromine?.before?.ppm ?? null;
+  const weeklyDose = getWeeklyDose({
+    bromine: latestBromine,
+    bleachLoggedThisSession: state.additions.some((a) => a.chemical === BLEACH_CHEMICAL),
+    tabletsLoggedThisSession: state.additions.some((a) => a.chemical === BROMINE_TABLET),
+    lastBleachAt: lastAdditions.lastBleachAt,
+    lastTabletsAt: lastAdditions.lastTabletsAt,
+  });
+  const weeklyAdditions = [
+    ...(weeklyDose.tablets.include && weeklyTablets !== null
+      ? [{ chemical: BROMINE_TABLET, amountOz: tabletsToOz(Number(weeklyTablets)) }]
+      : []),
+    ...(weeklyDose.bleach.include && weeklyBleach !== null
+      ? [{ chemical: BLEACH_CHEMICAL, amountOz: toOz(Number(weeklyBleach), "oz") }]
+      : []),
+  ];
+
+  const handleLogWeeklyDose = () => {
+    if (!state.sessionId || additionsFetcher.state !== "idle" || weeklyAdditions.length === 0) return;
+    const invalid = weeklyAdditions.map(parseAdditionInput).find((a) => !isAdditionInput(a));
+    if (invalid && !isAdditionInput(invalid)) {
+      setAdditionError(invalid.error);
+      return;
+    }
+    setAdditionError(null);
+    setPendingAdditionSave({ type: "weekly" });
+    additionsFetcher.submit(
+      { intent: "saveAdditions", sessionId: String(state.sessionId), additions: JSON.stringify(weeklyAdditions) },
+      { method: "post" }
+    );
+  };
 
   const openAdditionForm = () => {
     setCustomChemical(currentTest === "bromine" ? BROMINE_TABLET : CHOOSE_CHEMICAL);
@@ -786,10 +752,7 @@ export default function TestWizard() {
 
   // --- Test Selection ---
   if (state.step === "select") {
-    // For the selection UI, show only real TestTypes (not virtual bromine_fix)
-    const selectedBase = state.selectedTests.filter(
-      (s): s is TestType => s !== "bromine_fix"
-    );
+    const selectedBase = state.selectedTests;
     return (
       <div className={styles.wizard}>
         <h2 className={styles.heading}>Select Tests</h2>
@@ -829,10 +792,10 @@ export default function TestWizard() {
 
   // --- Summary ---
   if (state.step === "summary") {
-    // Filter out virtual bromine_fix — bromine row covers both before and after
-    const displayTests = state.selectedTests.filter(
-      (s): s is TestType => s !== "bromine_fix"
-    );
+    const displayTests = state.selectedTests;
+    const logged = state.weeklyDoseLogged;
+    const busy = additionsFetcher.state !== "idle";
+    const bleachRise = bromineRiseFromBleach(Number(weeklyBleach) || 0);
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={totalSteps - 1} />
@@ -898,6 +861,87 @@ export default function TestWizard() {
             ))}
           </div>
         )}
+        <div className={styles.doseCard}>
+          <div className={styles.summaryLabel}>Before you close the lid</div>
+          {logged ? (
+            logged.map((a, i) => (
+              <div key={i} className={styles.additionSummary}>
+                ✓ {a.chemical === BROMINE_TABLET
+                  ? `${Math.round(a.amountOz / BROMINE_TABLET_OZ)} bromine tablets`
+                  : `${a.chemical} · ${a.amountOz} oz`}
+              </div>
+            ))
+          ) : (
+            <>
+              <div className={styles.doseRow}>
+                <div className={styles.doseRowHead}>
+                  <span className={styles.recChemical}>Bromine tablets</span>
+                  {weeklyDose.tablets.include && (
+                    <button
+                      className={styles.doseRemove}
+                      aria-label={weeklyTablets === null ? "Add tablets back" : "Remove tablets"}
+                      onClick={() => setWeeklyTablets(weeklyTablets === null ? String(weeklyDose.tablets.count) : null)}
+                    >
+                      {weeklyTablets === null ? "Undo" : "×"}
+                    </button>
+                  )}
+                </div>
+                {!weeklyDose.tablets.include ? (
+                  <div className={styles.recReason}>{weeklyDose.tablets.skipReason}</div>
+                ) : weeklyTablets === null ? (
+                  <div className={styles.recReason}>Not adding this week.</div>
+                ) : (
+                  <div className={styles.recommendationAmount}>
+                    <input type="number" inputMode="numeric" min="0" className={styles.additionInput} aria-label="Bromine tablets" value={weeklyTablets} onChange={(e) => setWeeklyTablets(e.target.value)} />
+                    <div className={styles.unitToggle}>
+                      <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className={styles.doseRow}>
+                <div className={styles.doseRowHead}>
+                  <span className={styles.recChemical}>Bleach shock</span>
+                  {weeklyDose.bleach.include && (
+                    <button
+                      className={styles.doseRemove}
+                      aria-label={weeklyBleach === null ? "Add bleach back" : "Remove bleach"}
+                      onClick={() => setWeeklyBleach(weeklyBleach === null ? String(weeklyDose.bleach.oz) : null)}
+                    >
+                      {weeklyBleach === null ? "Undo" : "×"}
+                    </button>
+                  )}
+                </div>
+                {!weeklyDose.bleach.include ? (
+                  <div className={styles.recReason}>{weeklyDose.bleach.skipReason}</div>
+                ) : weeklyBleach === null ? (
+                  <div className={styles.recReason}>Not adding this week.</div>
+                ) : (
+                  <>
+                    <div className={styles.recommendationAmount}>
+                      <input type="number" inputMode="decimal" className={styles.additionInput} aria-label="Bleach amount" value={weeklyBleach} onChange={(e) => setWeeklyBleach(e.target.value)} />
+                      <div className={styles.unitToggle}>
+                        <span className={`${styles.unitBtn} ${styles.unitActive}`}>oz</span>
+                      </div>
+                    </div>
+                    <div className={styles.recReason}>
+                      Adds about {bleachRise} ppm bromine
+                      {latestBromine !== null ? ` (expect ~${Math.round(latestBromine + bleachRise)})` : ""}.
+                    </div>
+                    <div className={styles.recReason}>Pour into open water, pump running.</div>
+                    <div className={styles.recReason}>Cover off 20 min. Soak when bromine is under 10.</div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+          <div className={styles.recReason}>{weeklyDose.tablets.floaterHint}</div>
+          {!logged && weeklyAdditions.length > 0 && (
+            <button className={styles.btnPrimary} disabled={busy} onClick={handleLogWeeklyDose}>
+              {pendingAdditionSave?.type === "weekly" ? "Logging..." : "Log these"}
+            </button>
+          )}
+        </div>
         {additionForm}
         <button className={styles.btnPrimary} onClick={handleComplete}>
           Done
@@ -910,7 +954,7 @@ export default function TestWizard() {
   if (!currentTest) return null;
 
   // pH enforcement (auto-skip)
-  if (state.phSkipped && currentStep === "ph") {
+  if (state.phSkipped && currentTest === "ph") {
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={currentStepNum} />
@@ -1082,9 +1126,11 @@ export default function TestWizard() {
 
   // Recommendation step
   if (state.step === "recommendation") {
-    const recKey = currentStep === "bromine_fix" ? "bromine" : currentTest;
+    const recKey = currentTest;
     const recs = state.recommendations[recKey] || [];
     const isInRange = recs.length === 0;
+    // Bromine recs are advisories (the weekly dose is logged at the summary): no Applied/timer.
+    const advisoryOnly = isInRange || currentTest === "bromine";
     const recRange = TEST_RANGES[currentTest];
     const beforePpm = state.readings[recKey]?.before?.ppm;
     const currentDisplay =
@@ -1150,75 +1196,34 @@ export default function TestWizard() {
                 </div>
                 );
               })}
-              {showsBromineTablets(recKey, recs) && (
-                <div className={styles.recCard}>
-                  <div className={styles.recChemical}>Bromine tablets</div>
-                  <div className={styles.recReason}>Added with the bleach. Set 0 to skip.</div>
-                  <div className={styles.recommendationAmount}>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      className={styles.additionInput}
-                      aria-label="Bromine tablets"
-                      value={bromineTablets}
-                      onChange={(e) => setBromineTablets(e.target.value)}
-                    />
-                    <div className={styles.unitToggle}>
-                      <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </>
         )}
         <div className={styles.btnRow}>
-          {isInRange ? (
+          {advisoryOnly ? (
             <button className={styles.btnPrimary} onClick={advanceToNextTest}>
               Next Test
             </button>
           ) : (
             <>
-              {currentTest === "bromine" ? (
-                <>
-                  <button
-                    className={styles.btnPrimary}
-                    disabled={additionsFetcher.state !== "idle"}
-                    onClick={() => handleApplied("next")}
-                  >
-                    Applied
-                  </button>
-                  <button
-                    className={styles.btnSecondary}
-                    disabled={additionsFetcher.state !== "idle"}
-                    onClick={() => handleApplied("timer")}
-                  >
-                    Applied — Start Timer
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    className={styles.btnPrimary}
-                    disabled={additionsFetcher.state !== "idle"}
-                    onClick={() => handleApplied("timer")}
-                  >
-                    Applied — Start Timer
-                  </button>
-                  <button
-                    className={styles.btnSecondary}
-                    disabled={additionsFetcher.state !== "idle"}
-                    onClick={() => handleApplied("next")}
-                  >
-                    Applied — Skip Re-test
-                  </button>
-                </>
-              )}
+              <button
+                className={styles.btnPrimary}
+                disabled={additionsFetcher.state !== "idle"}
+                onClick={() => handleApplied("timer")}
+              >
+                Applied — Start Timer
+              </button>
+              <button
+                className={styles.btnSecondary}
+                disabled={additionsFetcher.state !== "idle"}
+                onClick={() => handleApplied("next")}
+              >
+                Applied — Skip Re-test
+              </button>
             </>
           )}
         </div>
-        {!isInRange && (
+        {!advisoryOnly && (
           <button
             className={styles.btnLink}
             disabled={additionsFetcher.state !== "idle"}

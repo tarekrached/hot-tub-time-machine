@@ -67,6 +67,29 @@ export function ppmToDrops(
 // Standard: 3 oz per 100 gal at 5.25%, scaled: 3 * (5.25/7.5) * (330/100) = 6.93
 // User confirmed: 6.6 oz for 330 gal at 7.5%
 export const BLEACH_SHOCK_OZ = 6.6;
+export const BLEACH_CHEMICAL = "7.5% Bleach";
+
+// FC per oz of bleach: 7.5% NaOCl is 7.1% available chlorine (Clorox label).
+// 6.6 fl oz = 195 mL into 330 gal = 1,249 L → 195 × 0.071 / 1249 ≈ 11.1 ppm FC,
+// ~12.2 ppm at density ~1.10. Midpoint ≈ 11.6 ppm per 6.6 oz ≈ 1.75 ppm per oz.
+export const BLEACH_FC_PPM_PER_OZ = 1.75;
+// With a bromide bank, 1 ppm FC becomes 2.25 ppm bromine (Br2 159.81 / Cl2 70.91).
+export const BROMINE_PER_FC = 2.25;
+
+export function bromineRiseFromBleach(oz: number): number {
+  return Math.round(oz * BLEACH_FC_PPM_PER_OZ * BROMINE_PER_FC); // 6.6 oz → 26
+}
+
+// Skip the weekly shock at 10+. ">=" because the 25 ml slider tops out at
+// 20 drops = 10 ppm, so a reading of 10 can mean "10 or more".
+export const SHOCK_SKIP_BROMINE_PPM = 10;
+
+export function shouldSkipShock(bromine: number | null): boolean {
+  return bromine !== null && bromine >= SHOCK_SKIP_BROMINE_PPM;
+}
+
+// Bleach or tablets logged fewer than this many days ago count as this week's dose.
+export const WEEKLY_DOSE_RECENT_DAYS = 3;
 
 // Sodium bromide on refill: 1/2 oz per 100 gal
 export const SODIUM_BROMIDE_OZ =
@@ -97,12 +120,17 @@ export function ozToTeaspoons(oz: number): number {
   return Math.round(oz * 6 * 10) / 10; // 1 oz = 6 tsp
 }
 
-// 1" bromine tablet (In The Swim Bromine Plus): typical weight, not measured.
+// HTH Spa bromine tablets (BCDMH-based, so they carry their own chlorine).
+// BROMINE_TABLET_OZ is a typical 1" tablet weight, not yet measured.
 // The picker takes a tablet count and stores count × this in amount_oz.
 export const BROMINE_TABLET = "Bromine tablet";
 export const BROMINE_TABLET_OZ = 0.7;
-// Tablets added alongside the bleach shock at the bromine step.
+// Tablets added with the weekly shock (summary card).
 export const DEFAULT_BROMINE_TABLETS = 2;
+
+export function tabletsToOz(count: number): number {
+  return Math.round(count * BROMINE_TABLET_OZ * 100) / 100;
+}
 
 export type AmountUnit = "oz" | "tbsp" | "tsp";
 
@@ -132,13 +160,18 @@ export function getRecommendations(
 
   switch (testType) {
     case "bromine": {
+      // Advisory only: the weekly bleach + tablets are logged from the summary card.
       if (currentValue < 4) {
         recs.push({
-          chemical: "7.5% Bleach",
-          amount: `${BLEACH_SHOCK_OZ} oz (${ozToTablespoons(BLEACH_SHOCK_OZ)} tbsp)`,
-          reason: `Bromine is low (${currentValue} ppm). Shock with bleach.`,
-          amountOz: BLEACH_SHOCK_OZ,
-          unit: "oz",
+          chemical: "Weekly shock",
+          amount: "Covered by today's shock",
+          reason: `Bromine is low (${currentValue} ppm). If it's low two weeks running, open the floater a notch.`,
+        });
+      } else if (shouldSkipShock(currentValue)) {
+        recs.push({
+          chemical: "Skip this week's shock",
+          amount: "Close the floater down a notch",
+          reason: `Bromine is high (${currentValue} ppm). Leave the cover open until it's under 10.`,
         });
       }
       break;
@@ -283,4 +316,66 @@ export function timeSinceLabel(dateStr: string | null): string {
   }
   const months = Math.floor(days / 30);
   return `${months} month${months > 1 ? "s" : ""} ago`;
+}
+
+export interface WeeklyDoseInput {
+  bromine: number | null;
+  bleachLoggedThisSession: boolean;
+  tabletsLoggedThisSession: boolean;
+  lastBleachAt: string | null;
+  lastTabletsAt: string | null;
+  now?: Date;
+}
+
+export interface WeeklyDose {
+  tablets: { include: boolean; count: number; skipReason?: string; floaterHint: string };
+  bleach: { include: boolean; oz: number; skipReason?: string; expectedBromine?: number };
+}
+
+function recentSkipReason(label: string, lastAt: string | null, now: Date): string | undefined {
+  const days = daysSince(lastAt, now);
+  if (days === null || days >= WEEKLY_DOSE_RECENT_DAYS) return undefined;
+  const when = days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+  return `${label} already logged ${when}.`;
+}
+
+// The weekly bleach shock + tablets, prefilled on the summary step.
+export function getWeeklyDose(input: WeeklyDoseInput): WeeklyDose {
+  const now = input.now ?? new Date();
+  const { bromine } = input;
+
+  const hints = ["Check the floater's holes aren't blocked and its setting hasn't shifted."];
+  if (bromine !== null && bromine < 4) {
+    hints.push("Bromine was low: if it's low again next week, open the floater a notch.");
+  } else if (shouldSkipShock(bromine)) {
+    hints.push("Bromine was high: close the floater down a notch.");
+  }
+
+  const tabletsSkip = input.tabletsLoggedThisSession
+    ? "Tablets already logged this session."
+    : recentSkipReason("Tablets", input.lastTabletsAt, now);
+
+  const bleachSkip = input.bleachLoggedThisSession
+    ? "Bleach already logged this session."
+    : shouldSkipShock(bromine)
+      ? `Skip this week: bromine is ${bromine} ppm (${SHOCK_SKIP_BROMINE_PPM}+).`
+      : recentSkipReason("Bleach", input.lastBleachAt, now);
+
+  return {
+    tablets: {
+      include: !tabletsSkip,
+      count: DEFAULT_BROMINE_TABLETS,
+      skipReason: tabletsSkip,
+      floaterHint: hints.join(" "),
+    },
+    bleach: {
+      include: !bleachSkip,
+      oz: BLEACH_SHOCK_OZ,
+      skipReason: bleachSkip,
+      expectedBromine:
+        !bleachSkip && bromine !== null
+          ? Math.round(bromine + bromineRiseFromBleach(BLEACH_SHOCK_OZ))
+          : undefined,
+    },
+  };
 }

@@ -18,6 +18,9 @@ import {
   TEST_CADENCE_DAYS,
   MAINTENANCE_CADENCE_DAYS,
   DEFAULT_BROMINE_TABLETS,
+  shouldSkipShock,
+  bromineRiseFromBleach,
+  getWeeklyDose,
 } from "shared/chemistry";
 
 describe("dropsToPpm", () => {
@@ -123,17 +126,25 @@ describe("dosing constants", () => {
 });
 
 describe("getRecommendations", () => {
-  it("recommends bleach when bromine is low", () => {
+  it("gives an advisory, not a dose, when bromine is low", () => {
     const recs = getRecommendations("bromine", 2);
     expect(recs).toHaveLength(1);
-    expect(recs[0].chemical).toBe("7.5% Bleach");
-    expect(recs[0].amount).toContain("6.6 oz");
-    expect(recs[0].amountOz).toBe(6.6);
-    expect(recs[0].unit).toBe("oz");
+    expect(recs[0].chemical).toBe("Weekly shock");
+    expect(recs[0].reason).toContain("open the floater");
+    expect(recs[0].amountOz).toBeUndefined();
+    expect(recs[0].unit).toBeUndefined();
   });
 
-  it("returns nothing when bromine is in range", () => {
-    expect(getRecommendations("bromine", 5)).toHaveLength(0);
+  it("advises skipping the shock when bromine is 10 or more", () => {
+    const recs = getRecommendations("bromine", 10);
+    expect(recs).toHaveLength(1);
+    expect(recs[0].chemical).toBe("Skip this week's shock");
+    expect(recs[0].amountOz).toBeUndefined();
+  });
+
+  it("returns nothing when bromine is 4 to under 10", () => {
+    expect(getRecommendations("bromine", 4)).toHaveLength(0);
+    expect(getRecommendations("bromine", 9.5)).toHaveLength(0);
   });
 
   it("recommends baking soda when TA is low", () => {
@@ -191,16 +202,14 @@ describe("getRecommendations", () => {
 
   it("provides structured amounts matching recommendation display units", () => {
     const cases = [
-      getRecommendations("bromine", 2)[0],
       getRecommendations("ta", 40)[0],
       getRecommendations("ph", 7.3)[0],
       getRecommendations("ph", 8.0)[0],
       getRecommendations("calcium", 110)[0],
     ];
 
-    expect(cases[0].amountOz).toBe(6.6);
-    expect(cases[1].amountOz).toBe(0.75);
-    expect(cases[2].amountOz).toBe(1.5);
+    expect(cases[0].amountOz).toBe(0.75);
+    expect(cases[1].amountOz).toBe(1.5);
     for (const rec of cases) {
       expect(rec.amountOz).toBeDefined();
       expect(rec.unit).toBeDefined();
@@ -292,5 +301,68 @@ describe("maintenance cadence and tablets", () => {
 
   it("defaults to 2 bromine tablets", () => {
     expect(DEFAULT_BROMINE_TABLETS).toBe(2);
+  });
+});
+
+describe("weekly shock", () => {
+  const now = new Date("2026-11-14T18:00:00Z");
+  const base = {
+    bromine: 5,
+    bleachLoggedThisSession: false,
+    tabletsLoggedThisSession: false,
+    lastBleachAt: "2026-11-07 18:00:00",
+    lastTabletsAt: "2026-11-07 18:00:00",
+    now,
+  };
+
+  it("skips the shock at 10 ppm and above", () => {
+    expect(shouldSkipShock(9.5)).toBe(false);
+    expect(shouldSkipShock(10)).toBe(true);
+    expect(shouldSkipShock(14)).toBe(true);
+    expect(shouldSkipShock(null)).toBe(false);
+  });
+
+  it("6.6 oz of bleach raises bromine about 25-28 ppm", () => {
+    const rise = bromineRiseFromBleach(6.6);
+    expect(rise).toBeGreaterThanOrEqual(25);
+    expect(rise).toBeLessThanOrEqual(28);
+  });
+
+  it("includes 2 tablets and 6.6 oz bleach on a normal week", () => {
+    const dose = getWeeklyDose(base);
+    expect(dose.tablets).toMatchObject({ include: true, count: 2 });
+    expect(dose.bleach).toMatchObject({ include: true, oz: 6.6, expectedBromine: 31 });
+    expect(dose.tablets.floaterHint).toContain("holes");
+  });
+
+  it("skips bleach at bromine 10 but keeps tablets", () => {
+    const dose = getWeeklyDose({ ...base, bromine: 10 });
+    expect(dose.bleach.include).toBe(false);
+    expect(dose.bleach.skipReason).toContain("10 ppm");
+    expect(dose.tablets.include).toBe(true);
+    expect(dose.tablets.floaterHint).toContain("close the floater");
+  });
+
+  it("skips bleach already logged this session", () => {
+    const dose = getWeeklyDose({ ...base, bleachLoggedThisSession: true });
+    expect(dose.bleach.include).toBe(false);
+    expect(dose.bleach.skipReason).toContain("this session");
+  });
+
+  it("skips bleach logged 2 days ago, includes it 4 days ago", () => {
+    const twoDays = getWeeklyDose({ ...base, lastBleachAt: "2026-11-12 18:00:00" });
+    expect(twoDays.bleach.include).toBe(false);
+    expect(twoDays.bleach.skipReason).toContain("2 days ago");
+    const fourDays = getWeeklyDose({ ...base, lastBleachAt: "2026-11-10 18:00:00" });
+    expect(fourDays.bleach.include).toBe(true);
+  });
+
+  it("skips tablets logged this session or recently", () => {
+    expect(getWeeklyDose({ ...base, tabletsLoggedThisSession: true }).tablets.include).toBe(false);
+    expect(getWeeklyDose({ ...base, lastTabletsAt: "2026-11-14 08:00:00" }).tablets.skipReason).toContain("today");
+  });
+
+  it("omits the expected reading without a bromine test", () => {
+    expect(getWeeklyDose({ ...base, bromine: null }).bleach).toMatchObject({ include: true, expectedBromine: undefined });
   });
 });

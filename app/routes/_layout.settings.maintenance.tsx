@@ -4,6 +4,7 @@ import type { Route } from "./+types/_layout.settings.maintenance";
 import { getMaintenanceEvents, addMaintenanceEvent } from "server/db";
 import { timeSinceLabel } from "shared/chemistry";
 import { MAINTENANCE_LABELS } from "shared/types";
+import { FILTER_CHANGE_STEPS, FILTER_CLEANING_STEPS } from "shared/maintenance";
 import type { MaintenanceType } from "shared/types";
 import styles from "~/styles/maintenance.module.css";
 
@@ -27,6 +28,7 @@ export default function MaintenancePage() {
   const fetcher = useFetcher();
   const [showBromideReminder, setShowBromideReminder] = useState(false);
   const [bromideStep, setBromideStep] = useState(0);
+  const [filterPage, setFilterPage] = useState<number | null>(null);
 
   const handleLog = (eventType: MaintenanceType) => {
     if (eventType === "drain_refill") {
@@ -34,8 +36,54 @@ export default function MaintenancePage() {
       setBromideStep(0);
       return;
     }
+    if (eventType === "filter_change") {
+      setFilterPage(0);
+      return;
+    }
     fetcher.submit({ eventType }, { method: "post" });
   };
+
+  const logFilterChange = () => {
+    fetcher.submit({ eventType: "filter_change" }, { method: "post" });
+    setFilterPage(null);
+  };
+
+  const filterPages = [
+    { title: "At the tub", steps: FILTER_CHANGE_STEPS, start: 1 },
+    { title: "Over the next day", steps: FILTER_CLEANING_STEPS, start: FILTER_CHANGE_STEPS.length + 1 },
+  ];
+
+  if (filterPage !== null) {
+    const page = filterPages[filterPage];
+    const isLast = filterPage === filterPages.length - 1;
+    return (
+      <div className={styles.bromideFlow}>
+        <h3 className={styles.bromideTitle}>Filter Change</h3>
+        <div className={styles.bromideStep}>
+          <div className={styles.bromideStepNum}>{page.title}</div>
+          <ol className={styles.filterList} start={page.start}>
+            {page.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </div>
+        <div className={styles.btnRow}>
+          <button
+            className={styles.btnPrimary}
+            onClick={isLast ? logFilterChange : () => setFilterPage(filterPage + 1)}
+          >
+            {isLast ? "Done — Log It" : "Next"}
+          </button>
+          <button className={styles.btnSecondary} onClick={logFilterChange}>
+            Just log it
+          </button>
+        </div>
+        <button className={styles.btnLink} onClick={() => setFilterPage(null)}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
 
   const handleBromideNext = () => {
     if (bromideStep < 2) {

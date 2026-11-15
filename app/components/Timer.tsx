@@ -1,29 +1,34 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import styles from "~/styles/timer.module.css";
 
 interface TimerProps {
   durationSeconds?: number;
+  /** Wall-clock end time (ms since epoch). Persisted by the wizard so the
+   *  countdown survives backgrounding, screen lock, and reloads. */
+  endsAt?: number | null;
   onComplete: () => void;
 }
 
-export function Timer({ durationSeconds = 900, onComplete }: TimerProps) {
-  const [remaining, setRemaining] = useState(durationSeconds);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+// Remaining time is derived from the clock, not counted down tick by tick:
+// mobile browsers throttle or freeze intervals while the tab is hidden, so a
+// decrementing counter only advances while the page is on screen.
+export function Timer({ durationSeconds = 900, endsAt, onComplete }: TimerProps) {
+  const [end] = useState(() => endsAt ?? Date.now() + durationSeconds * 1000);
+  const secondsLeft = () => Math.max(0, Math.ceil((end - Date.now()) / 1000));
+  const [remaining, setRemaining] = useState(secondsLeft);
 
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const tick = () => setRemaining(secondsLeft());
+    const interval = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [end]);
 
   useEffect(() => {
     if (remaining === 0) {

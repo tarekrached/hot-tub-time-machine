@@ -33,6 +33,7 @@ import {
 import styles from "~/styles/test-wizard.module.css";
 
 const STORAGE_KEY = "hottub_wizard_state";
+const RETEST_SECONDS = 15 * 60;
 
 // pH slider: 13 discrete stops covering <7.0 through >8.0
 const PH_VALUES = [6.8, 7.0, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 8.0, 8.2];
@@ -97,13 +98,11 @@ function renderStep(text: string) {
   );
 }
 
-function daysAgo(dateStr: string): string {
+function daysAgoShort(dateStr: string): string {
   const days = Math.floor(
     (Date.now() - new Date(dateStr + "Z").getTime()) / (1000 * 60 * 60 * 24)
   );
-  if (days === 0) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+  return days === 0 ? "today" : `${days}d`;
 }
 
 function getMaxDrops(testType: TestType, sampleSize: number): number {
@@ -132,6 +131,8 @@ interface WizardState {
   appliedChemicals: Record<string, boolean>;
   additions: { chemical: string; amountOz: number }[];
   recommendationAmounts: Record<string, { value: string; unit: AmountUnit }>;
+  /** Wall-clock end of the re-test timer (ms); persisted so it survives reloads. */
+  timerEndsAt?: number | null;
 }
 
 function makeInitialState(suggestedTests: TestType[]): WizardState {
@@ -335,6 +336,7 @@ export default function TestWizard() {
                 ...prev,
                 appliedChemicals: { ...prev.appliedChemicals, [pendingAdditionSave.recKey]: true },
                 step: "timer",
+                timerEndsAt: Date.now() + RETEST_SECONDS * 1000,
               }
             : prev
         );
@@ -556,11 +558,15 @@ export default function TestWizard() {
       advanceToNextTest();
       return;
     }
-    update({ appliedChemicals: { ...state.appliedChemicals, [recKey]: true }, step: "timer" });
+    update({
+      appliedChemicals: { ...state.appliedChemicals, [recKey]: true },
+      step: "timer",
+      timerEndsAt: Date.now() + RETEST_SECONDS * 1000,
+    });
   };
 
   const handleTimerComplete = useCallback(() => {
-    setState((prev) => ({ ...prev, step: "retest" }));
+    setState((prev) => ({ ...prev, step: "retest", timerEndsAt: null }));
   }, []);
 
   const handleSkipRetest = () => {
@@ -930,7 +936,11 @@ export default function TestWizard() {
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={currentStepNum} />
         <h2 className={styles.heading}>{TEST_LABELS[currentTest]}</h2>
-        <Timer onComplete={handleTimerComplete} />
+        <Timer
+          durationSeconds={RETEST_SECONDS}
+          endsAt={state.timerEndsAt}
+          onComplete={handleTimerComplete}
+        />
       </div>
     );
   }
@@ -1051,7 +1061,7 @@ export default function TestWizard() {
             )}
           </div>
         )}
-        <div className={styles.btnRow}>
+        <div className={`${styles.btnRow} ${styles.stickyActions}`}>
           <button
             className={styles.btnPrimary}
             onClick={() => handleSubmitReading("after")}
@@ -1263,17 +1273,20 @@ export default function TestWizard() {
             ))}
           </ol>
           <div className={styles.infoGuidance}>{instructions.guidance}</div>
-          {testRecent.map((r, i) => (
-            <div key={i} className={styles.infoRecentRow}>
-              <span className={styles.infoRecentPpm}>
-                {currentTest === "ph" ? formatPhValue(r.ppm) : r.ppm}
-                {range.unit ? ` ${range.unit}` : ""}
-              </span>
-              <span className={styles.infoRecentDate}>
-                {daysAgo(r.created_at)}
-              </span>
+          {testRecent.length > 0 && (
+            <div className={styles.infoRecentLine}>
+              <span className={styles.infoRecentLabel}>Last</span>
+              {testRecent.map((r, i) => (
+                <span key={i} className={styles.infoRecentItem}>
+                  <span className={styles.infoRecentPpm}>
+                    {currentTest === "ph" ? formatPhValue(r.ppm) : r.ppm}
+                    {range.unit ? ` ${range.unit}` : ""}
+                  </span>{" "}
+                  <span className={styles.infoRecentDate}>{daysAgoShort(r.created_at)}</span>
+                </span>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -1395,7 +1408,7 @@ export default function TestWizard() {
           )}
         </div>
       )}
-      <div className={styles.btnRow}>
+      <div className={`${styles.btnRow} ${styles.stickyActions}`}>
         <button
           className={styles.btnPrimary}
           onClick={() => handleSubmitReading("before")}

@@ -4,11 +4,11 @@ A mobile-friendly hot tub chemical tracker deployed on Cloudflare Workers with D
 
 ## Features
 
-- **Test Wizard** — Per-test sequential flow (TA → Bromine → pH → Calcium) with session recovery, 15-minute retest timers, and dosing recommendations. When bromine and pH are both selected, bromine is read first, pH is fully fixed, then bromine is fixed — preventing bleach from skewing the pH reading.
+- **Test Wizard** — Linear per-test flow (TA → Bromine → pH → Calcium) with session recovery, 15-minute retest timers, and dosing recommendations. Bromine gets an advisory, not a dose; the weekly 2 tablets + 6.6 oz bleach shock are prefilled and logged in one tap from the summary, skipped when bromine is 10+ or they were logged in the last 3 days ([weekly routine](docs/weekly-routine.md)).
 - **Drop-to-PPM Conversion** — Automatic conversion for Taylor K-2106 titration tests (supports 10ml and 25ml sample sizes); pH uses a swipe slider with out-of-range `<7.0` / `>8.0` support
 - **Dosing Recommendations** — Calculates chemical amounts based on current readings for a 330-gallon tub
 - **Dashboard** — Status cards with urgency coloring (green/yellow/red), sparkline trends, and overdue test badges
-- **Maintenance Log** — Track filter changes and drain/refill events with sodium bromide reminders. The bromine recommendation also adds bromine tablets (default 2) alongside the bleach
+- **Maintenance Log** — Track filter changes (with change and cleaning steps, see [filter care](docs/filter-care.md)) and drain/refill events with sodium bromide reminders
 - **pH Enforcement** — Soft auto-skip when bromine > 10 ppm (Taylor kit limit) with manual override
 
 ## Tech Stack
@@ -31,7 +31,7 @@ npm run build     # Production build
 
 ## Chemistry
 
-Configured for a **330-gallon** hot tub using the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/) with **7.5% disinfecting bleach** and a **Taylor K-2106** drop-based test kit. See [`docs/bromine-3-step-method.md`](docs/bromine-3-step-method.md) for the full reference and [`docs/cheatsheet.pdf`](docs/cheatsheet.pdf) for the original printed cheat sheet this app replaced.
+Configured for a **330-gallon** hot tub using the [bromine 3-step method](https://www.poolspaforum.com/forum/index.php?/topic/53410-how-to-use-bromine-3-step-method/) with **7.5% disinfecting bleach** and a **Taylor K-2106** drop-based test kit. See [`docs/bromine-3-step-method.md`](docs/bromine-3-step-method.md) for the full reference and [`docs/cheatsheet.pdf`](docs/cheatsheet.pdf) for the original printed cheat sheet this app replaced. [`docs/weekly-routine.md`](docs/weekly-routine.md) covers the weekly shock and tablets (dose arithmetic, the skip-at-10 rule, open measurements) and [`docs/filter-care.md`](docs/filter-care.md) covers filter cleaning, each claim tagged with its source.
 
 | Test | Ideal Range | Cadence |
 |------|-------------|---------|

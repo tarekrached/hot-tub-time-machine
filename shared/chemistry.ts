@@ -134,6 +134,15 @@ export function tabletsToOz(count: number): number {
 
 export type AmountUnit = "oz" | "tbsp" | "tsp";
 
+// Display line for a logged addition: tablets as a count, everything else in oz (and tbsp).
+export function formatAddition(chemical: string, amountOz: number): string {
+  if (chemical === BROMINE_TABLET) {
+    const count = Math.round(amountOz / BROMINE_TABLET_OZ);
+    return `${chemical} · ${count} ${count === 1 ? "tablet" : "tablets"}`;
+  }
+  return `${chemical} · ${amountOz} oz (${fromOz(amountOz, "tbsp")} tbsp)`;
+}
+
 export function toOz(value: number, unit: AmountUnit): number {
   const ounces = unit === "oz" ? value : unit === "tbsp" ? value / 2 : value / 6;
   return Math.round(ounces * 100) / 100;
@@ -164,7 +173,7 @@ export function getRecommendations(
       if (currentValue < 4) {
         recs.push({
           chemical: "Weekly shock",
-          amount: "Covered by today's shock",
+          amount: "Shock is set up on the summary",
           reason: `Bromine is low (${currentValue} ppm). If it's low two weeks running, open the floater a notch.`,
         });
       } else if (shouldSkipShock(currentValue)) {
@@ -329,7 +338,7 @@ export interface WeeklyDoseInput {
 
 export interface WeeklyDose {
   tablets: { include: boolean; count: number; skipReason?: string; floaterHint: string };
-  bleach: { include: boolean; oz: number; skipReason?: string; expectedBromine?: number };
+  bleach: { include: boolean; oz: number; skipReason?: string };
 }
 
 function recentSkipReason(label: string, lastAt: string | null, now: Date): string | undefined {
@@ -372,10 +381,6 @@ export function getWeeklyDose(input: WeeklyDoseInput): WeeklyDose {
       include: !bleachSkip,
       oz: BLEACH_SHOCK_OZ,
       skipReason: bleachSkip,
-      expectedBromine:
-        !bleachSkip && bromine !== null
-          ? Math.round(bromine + bromineRiseFromBleach(BLEACH_SHOCK_OZ))
-          : undefined,
     },
   };
 }

@@ -32,7 +32,7 @@ Research behind the weekly dose card (summary step of the test wizard) and the l
 ## Weekly shock
 
 - Manufacturers say to shock about weekly. [Sundance](https://www.sundancespas.com/blog-articles/hot-tub-shock-treatments-complete-guide): cover off 20+ min with pumps running; re-enter when back in range. [Cal Spas manual](https://www.manualslib.com/manual/2557947/Cal-Spas-Les.html?page=32): cover open at least 20 min; let sanitizer fall to range. [Leslie's](https://lesliespool.com/blog/how-to-brominate-a-spa-or-hot-tub.html) also says weekly. **sourced**
-- No source gives a bleach dose for a bromine tub. 6.6 oz rests on the forum method in `docs/bromine-3-step-method.md` (3 oz per 100 gal at 5.25%, scaled to 7.5% and 330 gal). **sourced**
+- No manufacturer source gives a bleach dose for a bromine tub. 6.6 oz rests on the forum method in `docs/bromine-3-step-method.md` (3 oz per 100 gal at 5.25%, scaled to 7.5% and 330 gal). **sourced**
 - Manufacturer MPS weekly shocks are about 1–2 oz, roughly 5 ppm FC-equivalent, so 6.6 oz of bleach is 2–3× that. That is why the tub sits above 10 for a while after a shock. **inferred**
 
 ## Skip the shock at 10 or more

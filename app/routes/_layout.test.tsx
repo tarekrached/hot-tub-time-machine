@@ -11,11 +11,11 @@ import {
   fromOz,
   toOz,
   BROMINE_TABLET,
-  BROMINE_TABLET_OZ,
   BLEACH_CHEMICAL,
   BLEACH_SHOCK_OZ,
   DEFAULT_BROMINE_TABLETS,
   tabletsToOz,
+  formatAddition,
   daysSince,
   getWeeklyDose,
   bromineRiseFromBleach,
@@ -245,6 +245,65 @@ export async function action({ request, context }: Route.ActionArgs) {
     default:
       return { error: "Unknown intent" };
   }
+}
+
+// One editable line of the weekly-dose card: remove/undo, skip reason, amount input, unit.
+function DoseRow({
+  label,
+  inputLabel,
+  noun,
+  unit,
+  inputMode,
+  min,
+  include,
+  skipReason,
+  value,
+  defaultValue,
+  onChange,
+  children,
+}: {
+  label: string;
+  inputLabel: string;
+  noun: string;
+  unit: string;
+  inputMode: "numeric" | "decimal";
+  min?: string;
+  include: boolean;
+  skipReason?: string;
+  value: string | null;
+  defaultValue: string;
+  onChange: (value: string | null) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={styles.doseRow}>
+      <div className={styles.doseRowHead}>
+        <span className={styles.recChemical}>{label}</span>
+        {include && (
+          <button
+            className={styles.doseRemove}
+            aria-label={value === null ? `Add ${noun} back` : `Remove ${noun}`}
+            onClick={() => onChange(value === null ? defaultValue : null)}
+          >
+            {value === null ? "Undo" : "×"}
+          </button>
+        )}
+      </div>
+      {!include ? (
+        <div className={styles.recReason}>{skipReason}</div>
+      ) : value === null ? (
+        <div className={styles.recReason}>Not adding this week.</div>
+      ) : (
+        <>
+          <div className={styles.recommendationAmount}>
+            <input type="number" inputMode={inputMode} min={min} className={styles.additionInput} aria-label={inputLabel} value={value} onChange={(e) => onChange(e.target.value)} />
+            <span className={styles.unitLabel}>{unit}</span>
+          </div>
+          {children}
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function TestWizard() {
@@ -641,7 +700,7 @@ export default function TestWizard() {
       ? [{ chemical: BROMINE_TABLET, amountOz: tabletsToOz(Number(weeklyTablets)) }]
       : []),
     ...(weeklyDose.bleach.include && weeklyBleach !== null
-      ? [{ chemical: BLEACH_CHEMICAL, amountOz: toOz(Number(weeklyBleach), "oz") }]
+      ? [{ chemical: BLEACH_CHEMICAL, amountOz: Number(weeklyBleach) }]
       : []),
   ];
 
@@ -675,7 +734,7 @@ export default function TestWizard() {
         <div className={styles.additionForm}>
           <select className={styles.additionSelect} value={customChemical} onChange={(e) => setCustomChemical(e.target.value)}>
             <option value={CHOOSE_CHEMICAL}>Choose chemical…</option>
-            <option>7.5% Bleach</option>
+            <option>{BLEACH_CHEMICAL}</option>
             <option>Baking Soda</option>
             <option>Borax</option>
             <option>Dry Acid (sodium bisulfate)</option>
@@ -690,9 +749,7 @@ export default function TestWizard() {
           <div className={styles.additionAmountRow}>
             <input type="number" inputMode="decimal" className={styles.additionInput} placeholder={customChemical === BROMINE_TABLET ? "Tablets" : "Amount"} value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} />
             {customChemical === BROMINE_TABLET ? (
-              <div className={styles.unitToggle}>
-                <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
-              </div>
+              <span className={styles.unitLabel}>tablets</span>
             ) : (
               <div className={styles.unitToggle}>
                 {(["oz", "tbsp", "tsp"] as AmountUnit[]).map((unit) => (
@@ -752,13 +809,12 @@ export default function TestWizard() {
 
   // --- Test Selection ---
   if (state.step === "select") {
-    const selectedBase = state.selectedTests;
     return (
       <div className={styles.wizard}>
         <h2 className={styles.heading}>Select Tests</h2>
         <div className={styles.testList}>
           {TEST_ORDER.map((tt) => {
-            const isSelected = selectedBase.includes(tt);
+            const isSelected = state.selectedTests.includes(tt);
             const isSuggested = suggestedTests.includes(tt);
             return (
               <label
@@ -782,7 +838,7 @@ export default function TestWizard() {
         <button
           className={styles.btnPrimary}
           onClick={handleStartSession}
-          disabled={selectedBase.length === 0 || fetcher.state !== "idle"}
+          disabled={state.selectedTests.length === 0 || fetcher.state !== "idle"}
         >
           {fetcher.state !== "idle" ? "Starting..." : "Start"}
         </button>
@@ -792,16 +848,16 @@ export default function TestWizard() {
 
   // --- Summary ---
   if (state.step === "summary") {
-    const displayTests = state.selectedTests;
     const logged = state.weeklyDoseLogged;
     const busy = additionsFetcher.state !== "idle";
-    const bleachRise = bromineRiseFromBleach(Number(weeklyBleach) || 0);
+    const bleachAmount = Number(weeklyBleach) || 0;
+    const bleachRise = bromineRiseFromBleach(bleachAmount);
     return (
       <div className={styles.wizard}>
         <StepDots total={totalSteps} current={totalSteps - 1} />
         <h2 className={styles.heading}>Summary</h2>
         <div className={styles.summaryList}>
-          {displayTests.map((tt) => {
+          {state.selectedTests.map((tt) => {
             const reading = state.readings[tt];
             const range = TEST_RANGES[tt];
             const before = reading?.before;
@@ -856,7 +912,7 @@ export default function TestWizard() {
             <div className={styles.summaryLabel}>Additions</div>
             {state.additions.map((addition, index) => (
               <div key={`${addition.chemical}-${index}`} className={styles.additionSummary}>
-                {addition.chemical} · {addition.amountOz} oz ({fromOz(addition.amountOz, "tbsp")} tbsp)
+                {formatAddition(addition.chemical, addition.amountOz)}
               </div>
             ))}
           </div>
@@ -864,75 +920,43 @@ export default function TestWizard() {
         <div className={styles.doseCard}>
           <div className={styles.summaryLabel}>Before you close the lid</div>
           {logged ? (
-            logged.map((a, i) => (
-              <div key={i} className={styles.additionSummary}>
-                ✓ {a.chemical === BROMINE_TABLET
-                  ? `${Math.round(a.amountOz / BROMINE_TABLET_OZ)} bromine tablets`
-                  : `${a.chemical} · ${a.amountOz} oz`}
-              </div>
-            ))
+            <div className={styles.additionSummary}>✓ Logged</div>
           ) : (
             <>
-              <div className={styles.doseRow}>
-                <div className={styles.doseRowHead}>
-                  <span className={styles.recChemical}>Bromine tablets</span>
-                  {weeklyDose.tablets.include && (
-                    <button
-                      className={styles.doseRemove}
-                      aria-label={weeklyTablets === null ? "Add tablets back" : "Remove tablets"}
-                      onClick={() => setWeeklyTablets(weeklyTablets === null ? String(weeklyDose.tablets.count) : null)}
-                    >
-                      {weeklyTablets === null ? "Undo" : "×"}
-                    </button>
-                  )}
-                </div>
-                {!weeklyDose.tablets.include ? (
-                  <div className={styles.recReason}>{weeklyDose.tablets.skipReason}</div>
-                ) : weeklyTablets === null ? (
-                  <div className={styles.recReason}>Not adding this week.</div>
-                ) : (
-                  <div className={styles.recommendationAmount}>
-                    <input type="number" inputMode="numeric" min="0" className={styles.additionInput} aria-label="Bromine tablets" value={weeklyTablets} onChange={(e) => setWeeklyTablets(e.target.value)} />
-                    <div className={styles.unitToggle}>
-                      <span className={`${styles.unitBtn} ${styles.unitActive}`}>tablets</span>
-                    </div>
+              <DoseRow
+                label="Bromine tablets"
+                inputLabel="Bromine tablets"
+                noun="tablets"
+                unit="tablets"
+                inputMode="numeric"
+                min="0"
+                include={weeklyDose.tablets.include}
+                skipReason={weeklyDose.tablets.skipReason}
+                value={weeklyTablets}
+                defaultValue={String(weeklyDose.tablets.count)}
+                onChange={setWeeklyTablets}
+              />
+              <DoseRow
+                label="Bleach shock"
+                inputLabel="Bleach amount"
+                noun="bleach"
+                unit="oz"
+                inputMode="decimal"
+                include={weeklyDose.bleach.include}
+                skipReason={weeklyDose.bleach.skipReason}
+                value={weeklyBleach}
+                defaultValue={String(weeklyDose.bleach.oz)}
+                onChange={setWeeklyBleach}
+              >
+                {bleachAmount > 0 && (
+                  <div className={styles.recReason}>
+                    Adds about {bleachRise} ppm bromine
+                    {latestBromine !== null ? ` (expect ~${Math.round(latestBromine + bleachRise)})` : ""}.
                   </div>
                 )}
-              </div>
-              <div className={styles.doseRow}>
-                <div className={styles.doseRowHead}>
-                  <span className={styles.recChemical}>Bleach shock</span>
-                  {weeklyDose.bleach.include && (
-                    <button
-                      className={styles.doseRemove}
-                      aria-label={weeklyBleach === null ? "Add bleach back" : "Remove bleach"}
-                      onClick={() => setWeeklyBleach(weeklyBleach === null ? String(weeklyDose.bleach.oz) : null)}
-                    >
-                      {weeklyBleach === null ? "Undo" : "×"}
-                    </button>
-                  )}
-                </div>
-                {!weeklyDose.bleach.include ? (
-                  <div className={styles.recReason}>{weeklyDose.bleach.skipReason}</div>
-                ) : weeklyBleach === null ? (
-                  <div className={styles.recReason}>Not adding this week.</div>
-                ) : (
-                  <>
-                    <div className={styles.recommendationAmount}>
-                      <input type="number" inputMode="decimal" className={styles.additionInput} aria-label="Bleach amount" value={weeklyBleach} onChange={(e) => setWeeklyBleach(e.target.value)} />
-                      <div className={styles.unitToggle}>
-                        <span className={`${styles.unitBtn} ${styles.unitActive}`}>oz</span>
-                      </div>
-                    </div>
-                    <div className={styles.recReason}>
-                      Adds about {bleachRise} ppm bromine
-                      {latestBromine !== null ? ` (expect ~${Math.round(latestBromine + bleachRise)})` : ""}.
-                    </div>
-                    <div className={styles.recReason}>Pour into open water, pump running.</div>
-                    <div className={styles.recReason}>Cover off 20 min. Soak when bromine is under 10.</div>
-                  </>
-                )}
-              </div>
+                <div className={styles.recReason}>Pour into open water, pump running.</div>
+                <div className={styles.recReason}>Cover off 20 min. Soak when bromine is under 10.</div>
+              </DoseRow>
             </>
           )}
           <div className={styles.recReason}>{weeklyDose.tablets.floaterHint}</div>
@@ -1237,7 +1261,7 @@ export default function TestWizard() {
           <div className={styles.additionsList}>
             {state.additions.map((addition, index) => (
               <div key={`${addition.chemical}-${index}`} className={styles.additionSummary}>
-                {addition.chemical} · {addition.amountOz} oz ({fromOz(addition.amountOz, "tbsp")} tbsp)
+                {formatAddition(addition.chemical, addition.amountOz)}
               </div>
             ))}
           </div>

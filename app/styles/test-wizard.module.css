@@ -421,6 +421,12 @@
   background: var(--color-blue);
 }
 
+.unitLabel {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
 .addChemicalButton {
   align-self: center;
   min-height: 44px;

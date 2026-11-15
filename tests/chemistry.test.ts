@@ -331,7 +331,7 @@ describe("weekly shock", () => {
   it("includes 2 tablets and 6.6 oz bleach on a normal week", () => {
     const dose = getWeeklyDose(base);
     expect(dose.tablets).toMatchObject({ include: true, count: 2 });
-    expect(dose.bleach).toMatchObject({ include: true, oz: 6.6, expectedBromine: 31 });
+    expect(dose.bleach).toMatchObject({ include: true, oz: 6.6 });
     expect(dose.tablets.floaterHint).toContain("holes");
   });
 
@@ -360,9 +360,5 @@ describe("weekly shock", () => {
   it("skips tablets logged this session or recently", () => {
     expect(getWeeklyDose({ ...base, tabletsLoggedThisSession: true }).tablets.include).toBe(false);
     expect(getWeeklyDose({ ...base, lastTabletsAt: "2026-11-14 08:00:00" }).tablets.skipReason).toContain("today");
-  });
-
-  it("omits the expected reading without a bromine test", () => {
-    expect(getWeeklyDose({ ...base, bromine: null }).bleach).toMatchObject({ include: true, expectedBromine: undefined });
   });
 });

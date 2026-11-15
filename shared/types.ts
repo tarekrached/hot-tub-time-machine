@@ -84,17 +84,17 @@ export const TEST_INSTRUCTIONS: Record<
       "💧 × 10 = ppm TA",
     ],
     guidance:
-      "Target 50–70 ppm.\nIf low, add baking soda.\nIf high, aerate (run jets with cover open).",
+      "If low, add baking soda.\nIf high, aerate (run jets with cover open).",
   },
   bromine: {
     procedure: [
-      "Fill large tube to 10 ml (lowest) or 25 ml (middle) mark",
+      "Fill to 10 ml (lowest) or 25 ml (middle) mark",
       "Add 2 scoops R-0870, swirl",
       "Count 💧 R-0872 until clear",
-      "💧 × ppm/💧 = bromine ppm (see sample size toggle)",
+      "💧 × ppm/💧 = ppm (set by sample size)",
     ],
     guidance:
-      "Target 4–6 ppm.\nIf low, shock with bleach.\nAbove 10 ppm: remove floater, leave cover open until it drops.",
+      "If low, shock with bleach.\nAbove 10: remove floater, leave cover open.",
   },
   ph: {
     procedure: [
@@ -103,7 +103,7 @@ export const TEST_INSTRUCTIONS: Record<
       "Match color to comparator card",
     ],
     guidance:
-      "Target 7.4–7.8.\nIf high (>7.8), add dry acid.\nIf low (<7.4), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
+      "If high (>7.8), add dry acid.\nIf low (<7.4), run jets or add borax.\nCannot test accurately above 10 ppm bromine.",
   },
   calcium: {
     procedure: [
@@ -114,7 +114,7 @@ export const TEST_INSTRUCTIONS: Record<
       "Count 💧 until color changes from red to blue",
       "💧 × 10 = ppm calcium",
     ],
-    guidance: "Target 130–150 ppm.\nIf low, add calcium chloride.",
+    guidance: "If low, add calcium chloride.",
   },
 };
 
